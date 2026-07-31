@@ -4,7 +4,10 @@ param()
 $ErrorActionPreference = "Stop"
 
 $sourceRoot = Join-Path $PSScriptRoot "src"
-$source = Join-Path $sourceRoot "CodexRouterSwitch.cs"
+$sources = @(
+  (Join-Path $sourceRoot "CodexRouterSwitch.cs"),
+  (Join-Path $sourceRoot "EnhancedMainForm.cs")
+)
 $manifest = Join-Path $sourceRoot "app.manifest"
 $dist = Join-Path $PSScriptRoot "dist"
 $output = Join-Path $dist "CodexRouterSwitch.exe"
@@ -18,6 +21,12 @@ $compiler = $compilerCandidates |
   Select-Object -First 1
 if (-not $compiler) {
   throw "The Windows .NET Framework C# compiler was not found."
+}
+
+foreach ($source in $sources) {
+  if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+    throw "Required C# source file was not found: $source"
+  }
 }
 
 New-Item -ItemType Directory -Path $dist -Force | Out-Null
@@ -34,6 +43,7 @@ $references = @(
 $arguments = @(
   "/nologo",
   "/target:winexe",
+  "/main:CodexRouterSwitch.EnhancedProgram",
   "/platform:anycpu",
   "/optimize+",
   "/debug-",
@@ -43,7 +53,7 @@ $arguments = @(
   "/out:$output"
 )
 $arguments += $references | ForEach-Object { "/reference:$_" }
-$arguments += $source
+$arguments += $sources
 
 & $compiler @arguments
 if ($LASTEXITCODE -ne 0) {
@@ -58,6 +68,8 @@ $hash = Get-FileHash -LiteralPath $output -Algorithm SHA256
 [pscustomobject]@{
   Ok = $true
   Compiler = $compiler
+  EntryPoint = "CodexRouterSwitch.EnhancedProgram"
+  Sources = $sources
   Output = $item.FullName
   Bytes = $item.Length
   SHA256 = $hash.Hash

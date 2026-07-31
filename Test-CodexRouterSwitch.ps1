@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $switchScript = Join-Path $PSScriptRoot "CodexRouterSwitch.ps1"
+$buildScript = Join-Path $PSScriptRoot "Build-Exe.ps1"
 $routerRoot = $env:CODEX_ROUTER_SWITCH_ROUTER_ROOT
 if ([String]::IsNullOrWhiteSpace($routerRoot)) {
   $routerRoot = Join-Path $env:LOCALAPPDATA "codex-router"
@@ -52,6 +53,92 @@ if ($LASTEXITCODE -ne 0) {
 $guiTest = $guiTestRaw | ConvertFrom-Json
 if (-not $guiTest.Ok -or $guiTest.WindowDisplayed) {
   throw "GuiSelfTest returned an unexpected result."
+}
+
+$committedExe = Join-Path $PSScriptRoot "dist\CodexRouterSwitch.exe"
+if (-not (Test-Path -LiteralPath $committedExe -PathType Leaf)) {
+  throw "The committed CodexRouterSwitch.exe was not found."
+}
+$distributionTestRoot = Join-Path (
+  Join-Path $PSScriptRoot "work\test_outputs"
+) ("committed-exe-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $distributionTestRoot -Force | Out-Null
+$committedGuiResult = Join-Path $distributionTestRoot "gui-self-test.json"
+$committedGuiProcess = Start-Process `
+  -FilePath $committedExe `
+  -ArgumentList @("--gui-self-test-file", $committedGuiResult) `
+  -Wait `
+  -PassThru
+if ($committedGuiProcess.ExitCode -ne 0) {
+  throw "Committed EXE GUI self-test failed with exit code $($committedGuiProcess.ExitCode)."
+}
+$committedGuiTest = Get-Content -LiteralPath $committedGuiResult -Raw |
+  ConvertFrom-Json
+if (
+  -not $committedGuiTest.ok -or
+  -not $committedGuiTest.enhancedUi -or
+  -not $committedGuiTest.refreshMutationGuard -or
+  -not $committedGuiTest.legacyArgsRestricted -or
+  $committedGuiTest.windowDisplayed -or
+  $committedGuiTest.mutationsPerformed
+) {
+  throw "The committed EXE is stale or returned an unexpected result."
+}
+
+$buildRaw = & powershell.exe `
+  -NoLogo `
+  -NoProfile `
+  -ExecutionPolicy Bypass `
+  -File $buildScript
+if ($LASTEXITCODE -ne 0) {
+  throw "EXE build failed: $buildRaw"
+}
+$build = $buildRaw | ConvertFrom-Json
+if (-not $build.Ok -or -not (Test-Path -LiteralPath $build.Output -PathType Leaf)) {
+  throw "Build-Exe returned an unexpected result."
+}
+if ($build.EntryPoint -ne "CodexRouterSwitch.EnhancedProgram") {
+  throw "Build-Exe did not select the enhanced UI entry point."
+}
+
+$exeTestRoot = Join-Path (
+  Join-Path $PSScriptRoot "work\test_outputs"
+) ("enhanced-exe-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $exeTestRoot -Force | Out-Null
+
+$exeGuiResult = Join-Path $exeTestRoot "gui-self-test.json"
+$exeGuiProcess = Start-Process `
+  -FilePath $build.Output `
+  -ArgumentList @("--gui-self-test-file", $exeGuiResult) `
+  -Wait `
+  -PassThru
+if ($exeGuiProcess.ExitCode -ne 0) {
+  throw "Enhanced EXE GUI self-test failed with exit code $($exeGuiProcess.ExitCode)."
+}
+$exeGuiTest = Get-Content -LiteralPath $exeGuiResult -Raw | ConvertFrom-Json
+if (
+  -not $exeGuiTest.ok -or
+  -not $exeGuiTest.enhancedUi -or
+  -not $exeGuiTest.refreshMutationGuard -or
+  -not $exeGuiTest.legacyArgsRestricted -or
+  $exeGuiTest.windowDisplayed -or
+  $exeGuiTest.mutationsPerformed
+) {
+  throw "Enhanced EXE GUI self-test returned an unexpected result."
+}
+
+$exeSelfResult = Join-Path $exeTestRoot "controller-self-test.json"
+$exeSelfProcess = Start-Process `
+  -FilePath $build.Output `
+  -ArgumentList @("--self-test-file", $exeSelfResult) `
+  -Wait `
+  -PassThru
+if ($exeSelfProcess.ExitCode -ne 0) {
+  throw "Enhanced EXE controller self-test failed with exit code $($exeSelfProcess.ExitCode)."
+}
+$exeSelfTest = Get-Content -LiteralPath $exeSelfResult -Raw | ConvertFrom-Json
+if (-not $exeSelfTest.ok -or $exeSelfTest.mutationsPerformed) {
+  throw "Enhanced EXE controller self-test returned an unexpected result."
 }
 
 $testRoot = Join-Path (
@@ -137,8 +224,15 @@ try {
   Ok = $true
   Syntax = "pass"
   ReadOnlySelfTest = "pass"
-  GuiCompileTest = "pass"
+  LegacyGuiCompileTest = "pass"
+  CommittedEnhancedExe = "pass"
+  EnhancedExeBuild = "pass"
+  EnhancedGuiSelfTest = "pass"
+  EnhancedControllerSelfTest = "pass"
   IsolatedEnableDisable = "pass"
   RealCodexConfigChanged = $false
   TestOutput = $testRoot
+  DistributionTestOutput = $distributionTestRoot
+  ExeTestOutput = $exeTestRoot
+  ExeSHA256 = $build.SHA256
 } | ConvertTo-Json

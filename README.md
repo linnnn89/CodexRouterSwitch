@@ -1,13 +1,14 @@
 # Codex Router Switch
 
-这是一个已编译为单文件 Windows EXE 的拨杆式开关，用于在以下两种状态之间切换：
+这是一个使用 Windows 原生 .NET Framework 编译的轻量控制面板，用于在以下两种
+Codex 连接方式之间安全切换：
 
-![Codex Router Switch](docs/codex-router-switch.png)
-
-- **ON**：启用 Codex Router 配置，重新生成仓库官方的
+- **Native Codex**：移除 Router 托管配置，恢复原生 Codex。
+- **Local Router**：启用 Codex Router 配置，重新生成仓库官方的
   `%USERPROFILE%\.codex\codex-router\start-codex-router.cmd`，并在可见命令窗口中启动它。
-- **OFF**：停止由本程序启动的 Router 进程，移除 Router 托管配置和后台计划任务，
-  恢复原生 Codex。
+
+界面将“用户选择的连接模式”和“Router 实际运行健康状态”分开显示，避免仅凭一个
+ON/OFF 拨杆误判当前是否可用。
 
 OFF 不会删除以下内容：
 
@@ -15,6 +16,23 @@ OFF 不会删除以下内容：
 - 已启用供应商和自定义模型设置；
 - Router 日志、缓存、备份和安装目录；
 - Codex 的 ChatGPT 登录、profiles、MCP 和其他非 Router 设置。
+
+## 主界面
+
+增强版界面显示：
+
+- 当前连接模式：Native Codex 或 Local Router；
+- Router 健康状态和本地端口；
+- 当前模型及 provider；
+- 最近一次状态检查时间；
+- Degraded 和 Orphaned 状态的针对性恢复操作；
+- Router 日志入口和不含凭据的诊断报告；
+- 切换完成后的 Codex 重启提示；
+- 窗口处于活动状态时每 5 秒自动刷新状态。
+
+`Degraded` 表示 Codex 已配置为使用 Router，但 Router 健康检查失败。
+`Orphaned` 表示 Native Codex 已恢复，但端口 `4102` 上仍检测到一个不受本程序管理的
+Router 进程。程序不会自动终止未知进程。
 
 ## 前提
 
@@ -39,35 +57,36 @@ OFF 不会删除以下内容：
 
 `Open-Codex-Router-Switch.cmd`
 
-每次切换完成后，需要由你自己完全退出并重新打开 Codex App。程序不会自动重启
-Codex。
+每次切换完成后，需要完全退出并重新打开 Codex App。程序不会自动终止或重启 Codex，
+以免中断正在运行的任务。界面可将重启步骤复制到剪贴板。
 
-主界面会显示当前运行状态和 Router 端口；`Check status` 只执行只读检查。成功切换后，
-界面底部才会显示 `Restart Codex to apply this change.` 提示，不再用成功弹窗打断操作。
-失败和需要注意的警告仍会使用 Windows 消息框明确提示。
-
-ON 时会出现一个标题为 `Codex Router - Visible Console` 的命令窗口。请在 Router
-使用期间保留该窗口；需要停止时使用拨杆切换到 OFF。
+Local Router 运行时会出现一个标题为 `Codex Router - Visible Console` 的命令窗口。
+请在使用期间保留该窗口；需要停止时在控制面板中选择 Native Codex。
 
 ## 安全设计
 
 - EXE 使用 Windows 自带的 .NET Framework 编译，不依赖 PS2EXE 或第三方 GUI 模块。
-- 使用按当前 Windows 用户隔离的单实例互斥锁，避免同时打开多个开关造成 PID
+- 使用按当前 Windows 用户隔离的单实例互斥锁，避免同时打开多个控制面板造成 PID
   状态竞争。
-- OFF 会先恢复原生 Codex 配置；只有恢复成功后才停止 Router，避免 Codex 指向已停止
-  的本地端点。
+- 恢复 Native Codex 时先恢复配置；只有恢复成功后才停止 Router，避免 Codex 指向
+  已停止的本地端点。
 - 不调用仓库的完整 `enable` 安装流程，因此切换时不会重复运行 `npm ci` 或重新安装
   Python 依赖。
-- ON 使用仓库自身的 `catalog.mjs`、`config-manager.mjs` 和
+- 启用 Router 使用仓库自身的 `catalog.mjs`、`config-manager.mjs` 和
   `service-windows.mjs render`。
-- OFF 使用仓库自身的 `config-manager.mjs disable` 和 `service.mjs uninstall`。
+- 恢复 Native Codex 使用仓库自身的 `config-manager.mjs disable` 和
+  `service.mjs uninstall`。
 - 仅终止本程序记录并验证过的可见命令窗口进程树；不会根据端口粗暴终止未知进程。
-- 如果端口 `4102` 被未知 Router 进程占用，程序会报错并停止，而不是杀死无关进程。
-- ON 启动失败时，如果原先是原生 Codex，会自动回滚到原生配置。
-- 界面支持键盘焦点和空格键/回车键切换，并启用 Per-Monitor DPI 感知。
+- 如果端口 `4102` 被未知 Router 进程占用，程序会停止切换并显示 Orphaned/异常状态，
+  而不是杀死无关进程。
+- Router 启动失败时，如果原先是 Native Codex，会自动回滚到原生配置。
+- 诊断报告不包含 API Key、OAuth Token、供应商凭据或完整 managed capability URL，
+  并将用户目录替换为 `%USERPROFILE%`。
+- 界面支持键盘焦点，并启用 Per-Monitor DPI 感知。
 
 EXE 没有商业代码签名证书，因此 Windows 属性中会显示“未签名”。它是在本机从
-同目录的 `src\CodexRouterSwitch.cs` 编译生成的；可使用 `Build-Exe.ps1` 复现构建。
+`src\CodexRouterSwitch.cs` 和 `src\EnhancedMainForm.cs` 编译生成的；可使用
+`Build-Exe.ps1` 复现构建。
 
 ## 重新编译
 
@@ -75,6 +94,9 @@ EXE 没有商业代码签名证书，因此 Windows 属性中会显示“未签�
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\Build-Exe.ps1
 ```
+
+构建脚本显式选择 `CodexRouterSwitch.EnhancedProgram` 作为 EXE 入口，同时保留原控制器
+和命令行自检逻辑。
 
 ## 只读自检
 
@@ -85,9 +107,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\CodexRouterSwitch.ps1 -Mode SelfTest
 ```
 
-完整测试还会在 `work/test_outputs/` 下创建隔离的临时 Codex 配置，验证
-enable/disable 是否保留原生模型、provider 和 profile；它不会修改真实的
-`%USERPROFILE%\.codex\config.toml`：
+完整测试会：
+
+- 解析 PowerShell 脚本；
+- 验证仓库提交的 `dist\CodexRouterSwitch.exe` 确实使用增强版界面；
+- 编译增强版 EXE；
+- 验证增强版 GUI 可在不显示窗口、不改变配置的情况下实例化；
+- 验证 EXE 仍可调用原控制器的只读自检；
+- 在 `work/test_outputs/` 下创建隔离的临时 Codex 配置；
+- 验证 enable/disable 保留原生模型、provider 和 profile；
+- 不修改真实的 `%USERPROFILE%\.codex\config.toml`。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
