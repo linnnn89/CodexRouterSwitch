@@ -1,0 +1,23 @@
+# Build and IDE intermediates
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+*.pdb
+*.user
+*.suo
+
+# Local test and runtime state
+work/
+test_outputs/
+router-switch-console.json
+router-switch-visible.cmd
+caller-secret
+internal-secret
+provider-key
+*.log
+
+# OS metadata
+Thumbs.db
+Desktop.ini
