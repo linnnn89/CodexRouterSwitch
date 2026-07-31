@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 $sourceRoot = Join-Path $PSScriptRoot "src"
 $sources = @(
   (Join-Path $sourceRoot "CodexRouterSwitch.cs"),
+  (Join-Path $sourceRoot "ModernUiControls.cs"),
   (Join-Path $sourceRoot "EnhancedMainForm.cs")
 )
 $manifest = Join-Path $sourceRoot "app.manifest"

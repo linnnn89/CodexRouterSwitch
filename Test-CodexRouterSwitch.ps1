@@ -77,8 +77,13 @@ $committedGuiTest = Get-Content -LiteralPath $committedGuiResult -Raw |
 if (
   -not $committedGuiTest.ok -or
   -not $committedGuiTest.enhancedUi -or
+  -not $committedGuiTest.modernUi -or
+  -not $committedGuiTest.pureChineseUi -or
+  -not $committedGuiTest.layoutSafe -or
+  $committedGuiTest.uiLanguage -ne "zh-CN" -or
+  $committedGuiTest.version -ne "1.2.0" -or
   -not $committedGuiTest.refreshMutationGuard -or
-  -not $committedGuiTest.legacyArgsRestricted -or
+  -not $committedGuiTest.readOnlyArgsRestricted -or
   $committedGuiTest.windowDisplayed -or
   $committedGuiTest.mutationsPerformed
 ) {
@@ -100,6 +105,12 @@ if (-not $build.Ok -or -not (Test-Path -LiteralPath $build.Output -PathType Leaf
 if ($build.EntryPoint -ne "CodexRouterSwitch.EnhancedProgram") {
   throw "Build-Exe did not select the enhanced UI entry point."
 }
+$assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName(
+  $build.Output
+).Version.ToString()
+if ($assemblyVersion -ne "1.2.0.0") {
+  throw "Unexpected EXE assembly version: $assemblyVersion"
+}
 
 $exeTestRoot = Join-Path (
   Join-Path $PSScriptRoot "work\test_outputs"
@@ -119,8 +130,13 @@ $exeGuiTest = Get-Content -LiteralPath $exeGuiResult -Raw | ConvertFrom-Json
 if (
   -not $exeGuiTest.ok -or
   -not $exeGuiTest.enhancedUi -or
+  -not $exeGuiTest.modernUi -or
+  -not $exeGuiTest.pureChineseUi -or
+  -not $exeGuiTest.layoutSafe -or
+  $exeGuiTest.uiLanguage -ne "zh-CN" -or
+  $exeGuiTest.version -ne "1.2.0" -or
   -not $exeGuiTest.refreshMutationGuard -or
-  -not $exeGuiTest.legacyArgsRestricted -or
+  -not $exeGuiTest.readOnlyArgsRestricted -or
   $exeGuiTest.windowDisplayed -or
   $exeGuiTest.mutationsPerformed
 ) {
@@ -224,10 +240,13 @@ try {
   Ok = $true
   Syntax = "pass"
   ReadOnlySelfTest = "pass"
-  LegacyGuiCompileTest = "pass"
+  ScriptGuiSelfTest = "pass"
   CommittedEnhancedExe = "pass"
   EnhancedExeBuild = "pass"
   EnhancedGuiSelfTest = "pass"
+  ModernChineseUi = "pass"
+  LayoutSelfTest = "pass"
+  AssemblyVersion = $assemblyVersion
   EnhancedControllerSelfTest = "pass"
   IsolatedEnableDisable = "pass"
   RealCodexConfigChanged = $false

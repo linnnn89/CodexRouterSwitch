@@ -3,12 +3,14 @@
 这是一个使用 Windows 原生 .NET Framework 编译的轻量控制面板，用于在以下两种
 Codex 连接方式之间安全切换：
 
-- **Native Codex**：移除 Router 托管配置，恢复原生 Codex。
-- **Local Router**：启用 Codex Router 配置，重新生成仓库官方的
+- **原生 Codex**：移除 Router 托管配置，恢复原生 Codex。
+- **本地路由**：启用 Codex Router 配置，重新生成仓库官方的
   `%USERPROFILE%\.codex\codex-router\start-codex-router.cmd`，并在可见命令窗口中启动它。
 
 界面将“用户选择的连接模式”和“Router 实际运行健康状态”分开显示，避免仅凭一个
 ON/OFF 拨杆误判当前是否可用。
+
+![v1.2 现代中文界面](docs/codex-router-switch-v1.2.png)
 
 OFF 不会删除以下内容：
 
@@ -19,19 +21,20 @@ OFF 不会删除以下内容：
 
 ## 主界面
 
-增强版界面显示：
+v1.2 使用纯中文的现代 Windows 界面，采用自绘圆角按钮、模式选择项、标题栏和固定
+底部命令栏，不依赖第三方 UI 框架。主界面显示：
 
-- 当前连接模式：Native Codex 或 Local Router；
+- 当前连接模式：原生 Codex 或本地路由；
 - Router 健康状态和本地端口；
-- 当前模型及 provider；
+- 当前模型及模型服务商；
 - 最近一次状态检查时间；
-- Degraded 和 Orphaned 状态的针对性恢复操作；
+- 降级和未跟踪进程状态的针对性恢复操作；
 - Router 日志入口和不含凭据的诊断报告；
 - 切换完成后的 Codex 重启提示；
 - 窗口处于活动状态时每 5 秒自动刷新状态。
 
-`Degraded` 表示 Codex 已配置为使用 Router，但 Router 健康检查失败。
-`Orphaned` 表示 Native Codex 已恢复，但端口 `4102` 上仍检测到一个不受本程序管理的
+内部状态 `Degraded` 表示 Codex 已配置为使用 Router，但 Router 健康检查失败。
+内部状态 `Orphaned` 表示原生 Codex 已恢复，但端口 `4102` 上仍检测到一个不受本程序管理的
 Router 进程。程序不会自动终止未知进程。
 
 ## 前提
@@ -60,8 +63,8 @@ Router 进程。程序不会自动终止未知进程。
 每次切换完成后，需要完全退出并重新打开 Codex App。程序不会自动终止或重启 Codex，
 以免中断正在运行的任务。界面可将重启步骤复制到剪贴板。
 
-Local Router 运行时会出现一个标题为 `Codex Router - Visible Console` 的命令窗口。
-请在使用期间保留该窗口；需要停止时在控制面板中选择 Native Codex。
+本地路由运行时会出现一个标题为 `Codex Router - Visible Console` 的命令窗口。
+请在使用期间保留该窗口；需要停止时在控制面板中选择原生 Codex。
 
 ## 安全设计
 
@@ -82,10 +85,13 @@ Local Router 运行时会出现一个标题为 `Codex Router - Visible Console` 
 - Router 启动失败时，如果原先是 Native Codex，会自动回滚到原生配置。
 - 诊断报告不包含 API Key、OAuth Token、供应商凭据或完整 managed capability URL，
   并将用户目录替换为 `%USERPROFILE%`。
-- 界面支持键盘焦点，并启用 Per-Monitor DPI 感知。
+- 界面支持键盘焦点、窗口缩放，并启用 Per-Monitor DPI 感知。
+- 主界面的可见文案、辅助功能名称、剪贴板步骤和诊断报告均为中文；Codex、
+  OpenAI、OpenRouter、模型名和路径等品牌或技术值保留原文。
 
 EXE 没有商业代码签名证书，因此 Windows 属性中会显示“未签名”。它是在本机从
-`src\CodexRouterSwitch.cs` 和 `src\EnhancedMainForm.cs` 编译生成的；可使用
+`src\CodexRouterSwitch.cs`、`src\ModernUiControls.cs` 和
+`src\EnhancedMainForm.cs` 编译生成的；可使用
 `Build-Exe.ps1` 复现构建。
 
 ## 重新编译
@@ -95,8 +101,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\Build-Exe.ps1
 ```
 
-构建脚本显式选择 `CodexRouterSwitch.EnhancedProgram` 作为 EXE 入口，同时保留原控制器
-和命令行自检逻辑。
+构建脚本显式选择唯一的 `CodexRouterSwitch.EnhancedProgram` 入口，由该入口直接处理
+GUI、状态读取和只读自检；路由控制器与进程安全边界保持不变。生成文件的程序集版本为
+`1.2.0.0`。
 
 ## 只读自检
 
@@ -112,7 +119,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 - 解析 PowerShell 脚本；
 - 验证仓库提交的 `dist\CodexRouterSwitch.exe` 确实使用增强版界面；
 - 编译增强版 EXE；
-- 验证增强版 GUI 可在不显示窗口、不改变配置的情况下实例化；
+- 验证现代中文 GUI、圆角自绘控件和关键布局可在不显示窗口、不改变配置的情况下实例化；
 - 验证 EXE 仍可调用原控制器的只读自检；
 - 在 `work/test_outputs/` 下创建隔离的临时 Codex 配置；
 - 验证 enable/disable 保留原生模型、provider 和 profile；

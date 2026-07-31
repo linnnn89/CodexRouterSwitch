@@ -27,8 +27,13 @@ jobs:
           if (
             -not $result.ok -or
             -not $result.enhancedUi -or
+            -not $result.modernUi -or
+            -not $result.pureChineseUi -or
+            -not $result.layoutSafe -or
+            $result.uiLanguage -ne "zh-CN" -or
+            $result.version -ne "1.2.0" -or
             -not $result.refreshMutationGuard -or
-            -not $result.legacyArgsRestricted -or
+            -not $result.readOnlyArgsRestricted -or
             $result.windowDisplayed -or
             $result.mutationsPerformed
           ) {
@@ -45,6 +50,12 @@ jobs:
           }
           if ($result.EntryPoint -ne "CodexRouterSwitch.EnhancedProgram") {
             throw "Unexpected EXE entry point: $($result.EntryPoint)"
+          }
+          $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName(
+            $result.Output
+          ).Version.ToString()
+          if ($assemblyVersion -ne "1.2.0.0") {
+            throw "Unexpected EXE assembly version: $assemblyVersion"
           }
           if (-not (Test-Path -LiteralPath $result.Output -PathType Leaf)) {
             throw "The expected EXE was not created."
@@ -71,8 +82,13 @@ jobs:
           if (
             -not $result.ok -or
             -not $result.enhancedUi -or
+            -not $result.modernUi -or
+            -not $result.pureChineseUi -or
+            -not $result.layoutSafe -or
+            $result.uiLanguage -ne "zh-CN" -or
+            $result.version -ne "1.2.0" -or
             -not $result.refreshMutationGuard -or
-            -not $result.legacyArgsRestricted -or
+            -not $result.readOnlyArgsRestricted -or
             $result.windowDisplayed -or
             $result.mutationsPerformed
           ) {
