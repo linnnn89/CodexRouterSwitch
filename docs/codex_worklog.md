@@ -19,4 +19,4 @@
   - 增强 GUI 无窗口自检通过；未执行配置变更。
   - PowerShell 语法解析通过。
   - 完整集成测试未运行：本机默认位置缺少上游 `codex-router` 安装，测试在只读前提检查阶段退出，真实 Codex 配置未改变。
-- 待完成：推送修正后，以 PR 最新提交的 Windows GitHub Actions 结果作为合并门。
+- GitHub 验证：Windows Actions 已通过已提交 EXE 校验、源码重新编译和增强 GUI 无窗口自检；该工作流作为合并门。
