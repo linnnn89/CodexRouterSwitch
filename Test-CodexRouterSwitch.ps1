@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 $switchScript = Join-Path $PSScriptRoot "CodexRouterSwitch.ps1"
+$buildScript = Join-Path $PSScriptRoot "Build-Exe.ps1"
 $routerRoot = $env:CODEX_ROUTER_SWITCH_ROUTER_ROOT
 if ([String]::IsNullOrWhiteSpace($routerRoot)) {
   $routerRoot = Join-Path $env:LOCALAPPDATA "codex-router"
@@ -52,6 +53,52 @@ if ($LASTEXITCODE -ne 0) {
 $guiTest = $guiTestRaw | ConvertFrom-Json
 if (-not $guiTest.Ok -or $guiTest.WindowDisplayed) {
   throw "GuiSelfTest returned an unexpected result."
+}
+
+$buildRaw = & powershell.exe `
+  -NoLogo `
+  -NoProfile `
+  -ExecutionPolicy Bypass `
+  -File $buildScript
+if ($LASTEXITCODE -ne 0) {
+  throw "EXE build failed: $buildRaw"
+}
+$build = $buildRaw | ConvertFrom-Json
+if (-not $build.Ok -or -not (Test-Path -LiteralPath $build.Output -PathType Leaf)) {
+  throw "Build-Exe returned an unexpected result."
+}
+if ($build.EntryPoint -ne "CodexRouterSwitch.EnhancedProgram") {
+  throw "Build-Exe did not select the enhanced UI entry point."
+}
+
+$exeTestRoot = Join-Path (
+  Join-Path $PSScriptRoot "work\test_outputs"
+) ("enhanced-exe-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $exeTestRoot -Force | Out-Null
+
+$exeGuiResult = Join-Path $exeTestRoot "gui-self-test.json"
+& $build.Output --gui-self-test-file $exeGuiResult
+if ($LASTEXITCODE -ne 0) {
+  throw "Enhanced EXE GUI self-test failed with exit code $LASTEXITCODE."
+}
+$exeGuiTest = Get-Content -LiteralPath $exeGuiResult -Raw | ConvertFrom-Json
+if (
+  -not $exeGuiTest.ok -or
+  -not $exeGuiTest.enhancedUi -or
+  $exeGuiTest.windowDisplayed -or
+  $exeGuiTest.mutationsPerformed
+) {
+  throw "Enhanced EXE GUI self-test returned an unexpected result."
+}
+
+$exeSelfResult = Join-Path $exeTestRoot "controller-self-test.json"
+& $build.Output --self-test-file $exeSelfResult
+if ($LASTEXITCODE -ne 0) {
+  throw "Enhanced EXE controller self-test failed with exit code $LASTEXITCODE."
+}
+$exeSelfTest = Get-Content -LiteralPath $exeSelfResult -Raw | ConvertFrom-Json
+if (-not $exeSelfTest.ok -or $exeSelfTest.mutationsPerformed) {
+  throw "Enhanced EXE controller self-test returned an unexpected result."
 }
 
 $testRoot = Join-Path (
@@ -137,8 +184,13 @@ try {
   Ok = $true
   Syntax = "pass"
   ReadOnlySelfTest = "pass"
-  GuiCompileTest = "pass"
+  LegacyGuiCompileTest = "pass"
+  EnhancedExeBuild = "pass"
+  EnhancedGuiSelfTest = "pass"
+  EnhancedControllerSelfTest = "pass"
   IsolatedEnableDisable = "pass"
   RealCodexConfigChanged = $false
   TestOutput = $testRoot
+  ExeTestOutput = $exeTestRoot
+  ExeSHA256 = $build.SHA256
 } | ConvertTo-Json
