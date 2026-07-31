@@ -53,5 +53,5 @@
   - `Test-CodexRouterSwitch.ps1` 的完整路由集成部分未能在本机运行：默认位置缺少
     上游 `codex-router\src\config-manager.mjs`。没有为测试下载或安装上游项目，
     真实 Codex 配置未改变。
-- 待验证：推送后由 GitHub Windows Actions 复核已提交 EXE、程序集版本、现代中文
-  UI 自检和源码重新编译。
+- GitHub 验证：Windows Actions 已通过已提交 EXE、程序集版本、现代中文 UI 自检和
+  源码重新编译；PR 当前可合并，保持 Draft 等待人工审阅。
