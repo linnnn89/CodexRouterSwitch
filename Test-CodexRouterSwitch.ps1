@@ -77,9 +77,13 @@ $exeTestRoot = Join-Path (
 New-Item -ItemType Directory -Path $exeTestRoot -Force | Out-Null
 
 $exeGuiResult = Join-Path $exeTestRoot "gui-self-test.json"
-& $build.Output --gui-self-test-file $exeGuiResult
-if ($LASTEXITCODE -ne 0) {
-  throw "Enhanced EXE GUI self-test failed with exit code $LASTEXITCODE."
+$exeGuiProcess = Start-Process `
+  -FilePath $build.Output `
+  -ArgumentList @("--gui-self-test-file", $exeGuiResult) `
+  -Wait `
+  -PassThru
+if ($exeGuiProcess.ExitCode -ne 0) {
+  throw "Enhanced EXE GUI self-test failed with exit code $($exeGuiProcess.ExitCode)."
 }
 $exeGuiTest = Get-Content -LiteralPath $exeGuiResult -Raw | ConvertFrom-Json
 if (
@@ -92,9 +96,13 @@ if (
 }
 
 $exeSelfResult = Join-Path $exeTestRoot "controller-self-test.json"
-& $build.Output --self-test-file $exeSelfResult
-if ($LASTEXITCODE -ne 0) {
-  throw "Enhanced EXE controller self-test failed with exit code $LASTEXITCODE."
+$exeSelfProcess = Start-Process `
+  -FilePath $build.Output `
+  -ArgumentList @("--self-test-file", $exeSelfResult) `
+  -Wait `
+  -PassThru
+if ($exeSelfProcess.ExitCode -ne 0) {
+  throw "Enhanced EXE controller self-test failed with exit code $($exeSelfProcess.ExitCode)."
 }
 $exeSelfTest = Get-Content -LiteralPath $exeSelfResult -Raw | ConvertFrom-Json
 if (-not $exeSelfTest.ok -or $exeSelfTest.mutationsPerformed) {
