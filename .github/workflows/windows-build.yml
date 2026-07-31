@@ -32,9 +32,16 @@ jobs:
         shell: powershell
         run: |
           $resultFile = Join-Path $env:RUNNER_TEMP "enhanced-gui-self-test.json"
-          & $env:EXE_PATH --gui-self-test-file $resultFile
-          if ($LASTEXITCODE -ne 0) {
-            throw "GUI self-test failed with exit code $LASTEXITCODE."
+          $process = Start-Process `
+            -FilePath $env:EXE_PATH `
+            -ArgumentList @("--gui-self-test-file", $resultFile) `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "GUI self-test failed with exit code $($process.ExitCode)."
+          }
+          if (-not (Test-Path -LiteralPath $resultFile -PathType Leaf)) {
+            throw "GUI self-test did not create its result file."
           }
           $result = Get-Content -LiteralPath $resultFile -Raw | ConvertFrom-Json
           if (
