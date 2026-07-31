@@ -33,7 +33,7 @@ jobs:
             $result.uiLanguage -ne "zh-CN" -or
             $result.version -ne "1.2.0" -or
             -not $result.refreshMutationGuard -or
-            -not $result.legacyArgsRestricted -or
+            -not $result.readOnlyArgsRestricted -or
             $result.windowDisplayed -or
             $result.mutationsPerformed
           ) {
@@ -88,7 +88,7 @@ jobs:
             $result.uiLanguage -ne "zh-CN" -or
             $result.version -ne "1.2.0" -or
             -not $result.refreshMutationGuard -or
-            -not $result.legacyArgsRestricted -or
+            -not $result.readOnlyArgsRestricted -or
             $result.windowDisplayed -or
             $result.mutationsPerformed
           ) {

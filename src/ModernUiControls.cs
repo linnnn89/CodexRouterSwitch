@@ -623,30 +623,20 @@ namespace CodexRouterSwitch
         }
     }
 
-    internal sealed class IconLabel : Control
+    internal sealed class IconLabel : Label
     {
-        private string iconGlyph = "";
-        private Color iconColor = ModernUi.MutedText;
         private float iconSize = 14F;
 
         public string IconGlyph
         {
-            get { return iconGlyph; }
-            set
-            {
-                iconGlyph = value ?? "";
-                Invalidate();
-            }
+            get { return Text; }
+            set { Text = value ?? ""; }
         }
 
         public Color IconColor
         {
-            get { return iconColor; }
-            set
-            {
-                iconColor = value;
-                Invalidate();
-            }
+            get { return ForeColor; }
+            set { ForeColor = value; }
         }
 
         public float IconSize
@@ -655,61 +645,28 @@ namespace CodexRouterSwitch
             set
             {
                 iconSize = Math.Max(8F, value);
-                Invalidate();
+                Font = ModernUi.CreateIconFont(iconSize);
             }
         }
 
         public IconLabel()
         {
-            SetStyle(
-                ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.OptimizedDoubleBuffer |
-                ControlStyles.ResizeRedraw |
-                ControlStyles.UserPaint |
-                ControlStyles.SupportsTransparentBackColor,
-                true
-            );
+            AutoSize = false;
             BackColor = Color.Transparent;
+            ForeColor = ModernUi.MutedText;
+            TextAlign = ContentAlignment.MiddleCenter;
+            Font = ModernUi.CreateIconFont(iconSize);
             TabStop = false;
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (Font iconFont = ModernUi.CreateIconFont(iconSize))
-            {
-                TextRenderer.DrawText(
-                    e.Graphics,
-                    iconGlyph,
-                    iconFont,
-                    ClientRectangle,
-                    iconColor,
-                    TextFormatFlags.NoPadding |
-                    TextFormatFlags.HorizontalCenter |
-                    TextFormatFlags.VerticalCenter |
-                    TextFormatFlags.SingleLine
-                );
-            }
         }
     }
 
-    internal sealed class SeparatorControl : Control
+    internal sealed class SeparatorControl : Panel
     {
         public SeparatorControl()
         {
-            SetStyle(
-                ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.OptimizedDoubleBuffer |
-                ControlStyles.ResizeRedraw |
-                ControlStyles.UserPaint,
-                true
-            );
+            BackColor = ModernUi.Divider;
             TabStop = false;
         }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            e.Graphics.Clear(ModernUi.Divider);
-        }
     }
+
 }

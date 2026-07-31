@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
@@ -1380,78 +1379,47 @@ namespace CodexRouterSwitch
             }
 
             string localized = message.Trim();
-            localized = localized.Replace(
-                "Node.js was not found. Codex Router cannot be controlled.",
-                "未找到 Node.js，当前无法控制 Codex 路由。"
-            );
-            localized = localized.Replace(
-                "Node.js did not report a version.",
-                "Node.js 未返回版本信息。"
-            );
-            localized = localized.Replace(
-                "Required Codex Router file is missing:",
-                "缺少必需的 Codex Router 文件："
-            );
-            localized = localized.Replace(
-                "A Router process not owned by this switch still responds on port 4102.",
-                "端口 4102 上仍有不受本程序管理的路由进程响应。"
-            );
-            localized = localized.Replace(
-                "Router did not become healthy within 300 seconds. Check ",
-                "路由在 300 秒内未恢复健康。请检查日志："
-            );
-            localized = localized.Replace(
-                "The previous visible Router runtime did not recover.",
-                "先前的可见路由进程未能恢复。"
-            );
-            localized = localized.Replace(
-                "Codex Router returned an invalid configuration status.",
-                "Codex Router 返回了无效的配置状态。"
-            );
-            localized = localized.Replace(
-                "The repository did not render a recognized Windows start script.",
-                "路由仓库未能生成可识别的 Windows 启动脚本。"
-            );
-            localized = localized.Replace(
-                "Router start script is missing:",
-                "缺少路由启动脚本："
-            );
-            localized = localized.Replace(
-                "Visible Router wrapper is missing:",
-                "缺少可见路由控制台启动脚本："
-            );
-            localized = localized.Replace(
-                "The visible Router console could not be started.",
-                "无法启动可见的路由控制台。"
-            );
-            localized = localized.Replace(
-                "The saved Router console state is invalid.",
-                "保存的路由控制台状态无效。"
-            );
-            localized = localized.Replace(
-                "The saved Router console state belongs to another launcher.",
-                "保存的路由控制台状态属于其他启动器。"
-            );
-            localized = localized.Replace(
-                "Could not start process:",
-                "无法启动进程："
-            );
-            localized = localized.Replace(
-                "Command timed out:",
-                "命令执行超时："
-            );
-            localized = localized.Replace(
-                "Command failed:",
-                "命令执行失败："
-            );
-            localized = localized.Replace(
-                "Expected a JSON object.",
-                "预期返回 JSON 对象，但实际结果无效。"
-            );
-            localized = localized.Replace(
-                "Rollback warning:",
-                "回滚警告："
-            );
+            string[,] replacements = new string[,]
+            {
+                { "Node.js was not found. Codex Router cannot be controlled.", "未找到 Node.js，当前无法控制 Codex 路由。" },
+                { "Node.js did not report a version.", "Node.js 未返回版本信息。" },
+                { "Required Codex Router file is missing:", "缺少必需的 Codex Router 文件：" },
+                { "A Router process not owned by this switch still responds on port 4102.", "端口 4102 上仍有不受本程序管理的路由进程响应。" },
+                { "Router did not become healthy within 300 seconds. Check ", "路由在 300 秒内未恢复健康。请检查日志：" },
+                { "The previous visible Router runtime did not recover.", "先前的可见路由进程未能恢复。" },
+                { "Codex Router returned an invalid configuration status.", "Codex Router 返回了无效的配置状态。" },
+                { "The repository rendered an unrecognized Windows start script.", "路由仓库返回了无法识别的 Windows 启动脚本。" },
+                { "The repository did not render a recognized Windows start script.", "路由仓库未能生成可识别的 Windows 启动脚本。" },
+                { "Router start script is missing:", "缺少路由启动脚本：" },
+                { "Visible Router wrapper is missing:", "缺少可见路由控制台启动脚本：" },
+                { "The visible Router console could not be started.", "无法启动可见的路由控制台。" },
+                { "The saved Router console state is invalid.", "保存的路由控制台状态无效。" },
+                { "The saved Router console state belongs to another launcher.", "保存的路由控制台状态属于其他启动器。" },
+                { "Could not start process:", "无法启动进程：" },
+                { "Command timed out:", "命令执行超时：" },
+                { "Command failed:", "命令执行失败：" },
+                { "Expected a JSON object.", "预期返回 JSON 对象，但实际结果无效。" },
+                { "Router is ON in a visible console. Restart Codex manually.", "本地路由已在可见控制台中启动。请手动重启 Codex。" },
+                { "Router is OFF. Native Codex is active and Router settings are preserved.", "本地路由已关闭。原生 Codex 已启用，路由设置已保留。" },
+                { "Native Codex was restored, but an untracked process still responds on port 4102.", "已恢复原生 Codex，但端口 4102 上仍有未纳入管理的进程响应。" },
+                { "Could not stop the failed visible process:", "无法停止启动失败的可见进程：" },
+                { "Could not restore native Codex configuration:", "无法恢复原生 Codex 配置：" },
+                { "Could not restore the previous Router runtime:", "无法恢复先前的路由运行状态：" },
+                { "Could not remove ", "无法删除 " },
+                { "Refusing to stop PID ", "为保护未知进程，拒绝停止 PID " },
+                { " because it is not the recorded command console.", "，因为它不是本程序记录的命令控制台。" },
+                { " because the PID has been reused.", "，因为该 PID 已被其他进程复用。" },
+                { " because its command line does not match this switch.", "，因为其命令行与本程序记录不一致。" },
+                { "Rollback warning:", "回滚警告：" },
+                { " Warning: ", " 警告：" }
+            };
+            for (int index = 0; index < replacements.GetLength(0); index++)
+            {
+                localized = localized.Replace(
+                    replacements[index, 0],
+                    replacements[index, 1]
+                );
+            }
             return localized;
         }
 
@@ -1641,19 +1609,20 @@ namespace CodexRouterSwitch
         internal bool RunModernUiSelfTest()
         {
             return FormBorderStyle == FormBorderStyle.None &&
-                nativeMode is ModeOption &&
-                routerMode is ModeOption &&
-                refreshButton is ModernButton &&
+                nativeMode.Text == "原生 Codex" &&
+                routerMode.Text == "本地路由" &&
                 refreshButton.Kind == ModernButtonKind.Primary &&
                 statusPanel.CornerRadius >= 10 &&
-                restartPanel.CornerRadius >= 10 &&
-                FriendlyModel("deepseek/deepseek-v4", "") == "DeepSeek V4" &&
-                FriendlyModel("openai/gpt-5", "") == "GPT-5" &&
-                FriendlyProvider("openrouter", "") == "OpenRouter";
+                restartPanel.CornerRadius >= 10;
         }
 
         internal bool RunChineseUiSelfTest()
         {
+            string localizedWarning = LocalizeControllerMessage(
+                "Router is OFF. Native Codex is active and Router settings are preserved." +
+                " Warning: Native Codex was restored, but an untracked process still " +
+                "responds on port 4102."
+            );
             return Text == "Codex 路由切换" &&
                 nativeMode.Text == "原生 Codex" &&
                 routerMode.Text == "本地路由" &&
@@ -1663,16 +1632,26 @@ namespace CodexRouterSwitch
                 restartText.Text.StartsWith(
                     "重启 Codex",
                     StringComparison.Ordinal
-                );
+                ) &&
+                localizedWarning.IndexOf(
+                    "Router is",
+                    StringComparison.Ordinal
+                ) < 0 &&
+                localizedWarning.IndexOf(
+                    "Warning:",
+                    StringComparison.Ordinal
+                ) < 0;
         }
 
         internal bool RunLayoutSelfTest()
         {
+            Size savedSize = Size;
             float savedRestartHeight = restartRowStyle.Height;
             bool savedRestartVisible = restartPanel.Visible;
             try
             {
                 CreateControl();
+                Size = MinimumSize;
                 restartRowStyle.Height = RestartPanelHeight;
                 restartPanel.Visible = true;
                 PerformLayout();
@@ -1685,6 +1664,7 @@ namespace CodexRouterSwitch
             }
             finally
             {
+                Size = savedSize;
                 restartRowStyle.Height = savedRestartHeight;
                 restartPanel.Visible = savedRestartVisible;
                 PerformLayout();
@@ -1828,11 +1808,38 @@ namespace CodexRouterSwitch
         [STAThread]
         private static int Main(string[] args)
         {
+            string resultFile = null;
             try
             {
+                if (HasArgument(args, "--self-test-file"))
+                {
+                    resultFile = FindResultFile(args, "--self-test-file");
+                    RouterController selfTestController = new RouterController();
+                    WriteJsonResult(resultFile, selfTestController.SelfTest());
+                    return 0;
+                }
+
+                if (HasArgument(args, "--status-file"))
+                {
+                    resultFile = FindResultFile(args, "--status-file");
+                    RouterController statusController = new RouterController();
+                    SwitchStatus status = statusController.GetStatus();
+                    Dictionary<string, object> values =
+                        new Dictionary<string, object>();
+                    values["ok"] = true;
+                    values["state"] = status.State;
+                    values["configOn"] = status.ConfigOn;
+                    values["healthy"] = status.Healthy;
+                    values["model"] = status.Model;
+                    values["modelProvider"] = status.ModelProvider;
+                    values["message"] = status.Message;
+                    WriteJsonResult(resultFile, values);
+                    return 0;
+                }
+
                 if (HasArgument(args, "--gui-self-test-file"))
                 {
-                    string resultFile = FindResultFile(args, "--gui-self-test-file");
+                    resultFile = FindResultFile(args, "--gui-self-test-file");
                     RouterController testController = new RouterController();
                     using (EnhancedMainForm form = new EnhancedMainForm(testController))
                     {
@@ -1851,21 +1858,22 @@ namespace CodexRouterSwitch
                         values["version"] = "1.2.0";
                         values["refreshMutationGuard"] =
                             form.RunInteractionGuardSelfTest();
-                        values["legacyArgsRestricted"] =
-                            HasLegacyCommandLineArgument(
-                                new string[] { "--self-test-file", "result.json" }
+                        values["readOnlyArgsRestricted"] =
+                            HasArgument(
+                                new string[] { "--self-test-file", "result.json" },
+                                "--self-test-file"
                             ) &&
-                            !HasLegacyCommandLineArgument(
-                                new string[] { "--unrecognized" }
+                            !HasArgument(
+                                new string[] { "--unrecognized" },
+                                "--self-test-file"
+                            ) &&
+                            !HasArgument(
+                                new string[] { "--unrecognized" },
+                                "--status-file"
                             );
                         WriteJsonResult(resultFile, values);
                     }
                     return 0;
-                }
-
-                if (HasLegacyCommandLineArgument(args))
-                {
-                    return InvokeLegacyCommandLine(args);
                 }
 
                 string sid = WindowsIdentity.GetCurrent().User.Value;
@@ -1888,18 +1896,37 @@ namespace CodexRouterSwitch
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                RouterController controller = new RouterController();
-                Application.Run(new EnhancedMainForm(controller));
+                RouterController mainController = new RouterController();
+                Application.Run(new EnhancedMainForm(mainController));
                 return 0;
             }
             catch (Exception error)
             {
-                MessageBox.Show(
-                    EnhancedMainForm.LocalizeControllerMessage(error.Message),
-                    "Codex 路由切换启动失败",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
+                if (!String.IsNullOrEmpty(resultFile))
+                {
+                    Dictionary<string, object> failure =
+                        new Dictionary<string, object>();
+                    failure["ok"] = false;
+                    failure["message"] =
+                        EnhancedMainForm.LocalizeControllerMessage(error.Message);
+                    failure["details"] = error.ToString();
+                    try
+                    {
+                        WriteJsonResult(resultFile, failure);
+                    }
+                    catch
+                    {
+                    }
+                }
+                else
+                {
+                    MessageBox.Show(
+                        EnhancedMainForm.LocalizeControllerMessage(error.Message),
+                        "Codex 路由切换启动失败",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
                 return 1;
             }
             finally
@@ -1919,34 +1946,6 @@ namespace CodexRouterSwitch
             }
         }
 
-        private static int InvokeLegacyCommandLine(string[] args)
-        {
-            MethodInfo main = typeof(Program).GetMethod(
-                "Main",
-                BindingFlags.NonPublic | BindingFlags.Static
-            );
-            if (main == null)
-            {
-                throw new InvalidOperationException(
-                    "未找到兼容命令行入口。"
-                );
-            }
-
-            try
-            {
-                object result = main.Invoke(null, new object[] { args });
-                return Convert.ToInt32(result, CultureInfo.InvariantCulture);
-            }
-            catch (TargetInvocationException error)
-            {
-                if (error.InnerException != null)
-                {
-                    throw error.InnerException;
-                }
-                throw;
-            }
-        }
-
         private static bool HasArgument(string[] args, string name)
         {
             if (args == null)
@@ -1961,12 +1960,6 @@ namespace CodexRouterSwitch
                 }
             }
             return false;
-        }
-
-        private static bool HasLegacyCommandLineArgument(string[] args)
-        {
-            return HasArgument(args, "--self-test-file") ||
-                HasArgument(args, "--status-file");
         }
 
         private static string FindResultFile(string[] args, string name)

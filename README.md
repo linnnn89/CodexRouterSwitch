@@ -101,8 +101,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\Build-Exe.ps1
 ```
 
-构建脚本显式选择 `CodexRouterSwitch.EnhancedProgram` 作为 EXE 入口，同时保留原控制器、
-命令行自检逻辑和进程安全边界。生成文件的程序集版本为 `1.2.0.0`。
+构建脚本显式选择唯一的 `CodexRouterSwitch.EnhancedProgram` 入口，由该入口直接处理
+GUI、状态读取和只读自检；路由控制器与进程安全边界保持不变。生成文件的程序集版本为
+`1.2.0.0`。
 
 ## 只读自检
 

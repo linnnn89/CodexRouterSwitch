@@ -83,7 +83,7 @@ if (
   $committedGuiTest.uiLanguage -ne "zh-CN" -or
   $committedGuiTest.version -ne "1.2.0" -or
   -not $committedGuiTest.refreshMutationGuard -or
-  -not $committedGuiTest.legacyArgsRestricted -or
+  -not $committedGuiTest.readOnlyArgsRestricted -or
   $committedGuiTest.windowDisplayed -or
   $committedGuiTest.mutationsPerformed
 ) {
@@ -136,7 +136,7 @@ if (
   $exeGuiTest.uiLanguage -ne "zh-CN" -or
   $exeGuiTest.version -ne "1.2.0" -or
   -not $exeGuiTest.refreshMutationGuard -or
-  -not $exeGuiTest.legacyArgsRestricted -or
+  -not $exeGuiTest.readOnlyArgsRestricted -or
   $exeGuiTest.windowDisplayed -or
   $exeGuiTest.mutationsPerformed
 ) {
@@ -240,7 +240,7 @@ try {
   Ok = $true
   Syntax = "pass"
   ReadOnlySelfTest = "pass"
-  LegacyGuiCompileTest = "pass"
+  ScriptGuiSelfTest = "pass"
   CommittedEnhancedExe = "pass"
   EnhancedExeBuild = "pass"
   EnhancedGuiSelfTest = "pass"
