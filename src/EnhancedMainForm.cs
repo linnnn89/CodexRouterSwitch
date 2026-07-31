@@ -35,12 +35,13 @@ namespace CodexRouterSwitch
         private readonly BusyLine busyLine;
         private readonly RoundedPanel restartPanel;
         private readonly Label restartText;
+        private readonly RowStyle restartRowStyle;
         private readonly System.Windows.Forms.Timer refreshTimer;
 
         private bool suppressModeEvent;
         private bool busy;
+        private bool refreshing;
         private SwitchStatus lastStatus;
-        private string lastError;
         private Action primaryActionHandler;
         private Action secondaryActionHandler;
 
@@ -51,8 +52,8 @@ namespace CodexRouterSwitch
             Text = "Codex Router Switch";
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(690, 600);
-            MinimumSize = new Size(690, 600);
+            ClientSize = new Size(690, 640);
+            MinimumSize = new Size(690, 640);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
@@ -77,7 +78,8 @@ namespace CodexRouterSwitch
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 14F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 94F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 12F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
+            restartRowStyle = new RowStyle(SizeType.Absolute, 0F);
+            root.RowStyles.Add(restartRowStyle);
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             Controls.Add(root);
 
@@ -243,7 +245,11 @@ namespace CodexRouterSwitch
             restartLayout.Controls.Add(restartActions, 1, 0);
 
             Button dismissRestart = CreateActionButton("Dismiss");
-            dismissRestart.Click += delegate { restartPanel.Visible = false; };
+            dismissRestart.Click += delegate
+            {
+                restartPanel.Visible = false;
+                restartRowStyle.Height = 0F;
+            };
             restartActions.Controls.Add(dismissRestart);
 
             Button copyRestart = CreateActionButton("Copy steps");
@@ -357,27 +363,27 @@ namespace CodexRouterSwitch
 
         private async void FormShown(object sender, EventArgs e)
         {
-            await RefreshStatusAsync();
+            await RefreshStatusAsync(true);
             refreshTimer.Start();
         }
 
         private async void RefreshClicked(object sender, EventArgs e)
         {
-            await RefreshStatusAsync();
+            await RefreshStatusAsync(true);
         }
 
         private async void RefreshTimerTick(object sender, EventArgs e)
         {
             if (!busy)
             {
-                await RefreshStatusAsync();
+                await RefreshStatusAsync(false);
             }
         }
 
         private async void ModeCheckedChanged(object sender, EventArgs e)
         {
             RadioButton selected = sender as RadioButton;
-            if (selected == null || !selected.Checked || suppressModeEvent || busy)
+            if (selected == null || !selected.Checked || suppressModeEvent || busy || refreshing)
             {
                 return;
             }
@@ -419,7 +425,7 @@ namespace CodexRouterSwitch
             }
 
             SetBusy(false, null);
-            await RefreshStatusAsync();
+            await RefreshStatusAsync(false);
 
             if (failure != null)
             {
@@ -427,6 +433,7 @@ namespace CodexRouterSwitch
                 return;
             }
 
+            restartRowStyle.Height = 70F;
             restartPanel.Visible = true;
             if (result != null && result.Warnings.Count > 0)
             {
@@ -444,26 +451,32 @@ namespace CodexRouterSwitch
             await ChangeModeAsync(false);
         }
 
-        private async Task RefreshStatusAsync()
+        private async Task RefreshStatusAsync(bool showProgress)
         {
-            if (busy)
+            if (busy || refreshing)
             {
                 return;
             }
 
-            SetBusy(true, "Checking Codex and Router state...");
+            refreshing = true;
+            if (showProgress)
+            {
+                SetBusy(true, "Checking Codex and Router state...");
+            }
+            else
+            {
+                refreshButton.Enabled = false;
+            }
             try
             {
                 SwitchStatus status = await Task.Run(
                     delegate { return controller.GetStatus(); }
                 );
                 lastStatus = status;
-                lastError = null;
                 ApplyStatus(status);
             }
             catch (Exception error)
             {
-                lastError = error.Message;
                 ShowError(error.Message);
                 connectionValue.Text = "Unavailable";
                 processValue.Text = "Unavailable";
@@ -476,7 +489,15 @@ namespace CodexRouterSwitch
             }
             finally
             {
-                SetBusy(false, null);
+                if (showProgress)
+                {
+                    SetBusy(false, null);
+                }
+                else
+                {
+                    refreshButton.Enabled = true;
+                }
+                refreshing = false;
             }
         }
 
@@ -654,7 +675,7 @@ namespace CodexRouterSwitch
 
         private async void RefreshStatusAction()
         {
-            await RefreshStatusAsync();
+            await RefreshStatusAsync(true);
         }
 
         private static void OpenTaskManager()
@@ -730,10 +751,6 @@ namespace CodexRouterSwitch
             builder.AppendLine(
                 "Router log: " + RedactUserPath(controller.Paths.RouterLog)
             );
-            if (!String.IsNullOrWhiteSpace(lastError))
-            {
-                builder.AppendLine("Last error: " + lastError);
-            }
             builder.AppendLine(
                 "Secrets, API keys, OAuth tokens, and managed capability URLs are not included."
             );
