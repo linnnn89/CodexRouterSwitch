@@ -55,6 +55,36 @@ if (-not $guiTest.Ok -or $guiTest.WindowDisplayed) {
   throw "GuiSelfTest returned an unexpected result."
 }
 
+$committedExe = Join-Path $PSScriptRoot "dist\CodexRouterSwitch.exe"
+if (-not (Test-Path -LiteralPath $committedExe -PathType Leaf)) {
+  throw "The committed CodexRouterSwitch.exe was not found."
+}
+$distributionTestRoot = Join-Path (
+  Join-Path $PSScriptRoot "work\test_outputs"
+) ("committed-exe-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $distributionTestRoot -Force | Out-Null
+$committedGuiResult = Join-Path $distributionTestRoot "gui-self-test.json"
+$committedGuiProcess = Start-Process `
+  -FilePath $committedExe `
+  -ArgumentList @("--gui-self-test-file", $committedGuiResult) `
+  -Wait `
+  -PassThru
+if ($committedGuiProcess.ExitCode -ne 0) {
+  throw "Committed EXE GUI self-test failed with exit code $($committedGuiProcess.ExitCode)."
+}
+$committedGuiTest = Get-Content -LiteralPath $committedGuiResult -Raw |
+  ConvertFrom-Json
+if (
+  -not $committedGuiTest.ok -or
+  -not $committedGuiTest.enhancedUi -or
+  -not $committedGuiTest.refreshMutationGuard -or
+  -not $committedGuiTest.legacyArgsRestricted -or
+  $committedGuiTest.windowDisplayed -or
+  $committedGuiTest.mutationsPerformed
+) {
+  throw "The committed EXE is stale or returned an unexpected result."
+}
+
 $buildRaw = & powershell.exe `
   -NoLogo `
   -NoProfile `
@@ -89,6 +119,8 @@ $exeGuiTest = Get-Content -LiteralPath $exeGuiResult -Raw | ConvertFrom-Json
 if (
   -not $exeGuiTest.ok -or
   -not $exeGuiTest.enhancedUi -or
+  -not $exeGuiTest.refreshMutationGuard -or
+  -not $exeGuiTest.legacyArgsRestricted -or
   $exeGuiTest.windowDisplayed -or
   $exeGuiTest.mutationsPerformed
 ) {
@@ -193,12 +225,14 @@ try {
   Syntax = "pass"
   ReadOnlySelfTest = "pass"
   LegacyGuiCompileTest = "pass"
+  CommittedEnhancedExe = "pass"
   EnhancedExeBuild = "pass"
   EnhancedGuiSelfTest = "pass"
   EnhancedControllerSelfTest = "pass"
   IsolatedEnableDisable = "pass"
   RealCodexConfigChanged = $false
   TestOutput = $testRoot
+  DistributionTestOutput = $distributionTestRoot
   ExeTestOutput = $exeTestRoot
   ExeSHA256 = $build.SHA256
 } | ConvertTo-Json

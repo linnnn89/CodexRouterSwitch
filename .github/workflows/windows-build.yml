@@ -11,6 +11,30 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Verify committed EXE uses the enhanced UI
+        shell: powershell
+        run: |
+          $resultFile = Join-Path $env:RUNNER_TEMP "committed-gui-self-test.json"
+          $process = Start-Process `
+            -FilePath .\dist\CodexRouterSwitch.exe `
+            -ArgumentList @("--gui-self-test-file", $resultFile) `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Committed EXE GUI self-test failed with exit code $($process.ExitCode)."
+          }
+          $result = Get-Content -LiteralPath $resultFile -Raw | ConvertFrom-Json
+          if (
+            -not $result.ok -or
+            -not $result.enhancedUi -or
+            -not $result.refreshMutationGuard -or
+            -not $result.legacyArgsRestricted -or
+            $result.windowDisplayed -or
+            $result.mutationsPerformed
+          ) {
+            throw "The committed EXE is stale or returned an unexpected result."
+          }
+
       - name: Build enhanced EXE
         shell: powershell
         run: |
@@ -47,6 +71,8 @@ jobs:
           if (
             -not $result.ok -or
             -not $result.enhancedUi -or
+            -not $result.refreshMutationGuard -or
+            -not $result.legacyArgsRestricted -or
             $result.windowDisplayed -or
             $result.mutationsPerformed
           ) {

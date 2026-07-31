@@ -433,11 +433,20 @@ namespace CodexRouterSwitch
                 return;
             }
 
+            if (result == null || !result.Ok)
+            {
+                ShowError("The connection operation did not report success.");
+                return;
+            }
+
             restartRowStyle.Height = 70F;
             restartPanel.Visible = true;
-            if (result != null && result.Warnings.Count > 0)
+            if (result.Warnings.Count > 0)
             {
-                ShowWarning("Connection changed with warnings", result.Message);
+                ShowWarningPreservingActions(
+                    "Connection changed with warnings",
+                    result.Message
+                );
             }
         }
 
@@ -458,14 +467,10 @@ namespace CodexRouterSwitch
                 return;
             }
 
-            refreshing = true;
+            SetRefreshing(true);
             if (showProgress)
             {
                 SetBusy(true, "Checking Codex and Router state...");
-            }
-            else
-            {
-                refreshButton.Enabled = false;
             }
             try
             {
@@ -493,11 +498,7 @@ namespace CodexRouterSwitch
                 {
                     SetBusy(false, null);
                 }
-                else
-                {
-                    refreshButton.Enabled = true;
-                }
-                refreshing = false;
+                SetRefreshing(false);
             }
         }
 
@@ -608,6 +609,15 @@ namespace CodexRouterSwitch
             ClearActions();
         }
 
+        private void ShowWarningPreservingActions(string headline, string detail)
+        {
+            statusPanel.FillColor = Color.FromArgb(255, 248, 235);
+            statusPanel.BorderColor = Color.FromArgb(238, 207, 151);
+            statusHeadline.ForeColor = Color.FromArgb(138, 60, 0);
+            statusHeadline.Text = headline;
+            statusDetail.Text = detail;
+        }
+
         private void ShowError(string detail)
         {
             statusPanel.FillColor = Color.FromArgb(255, 243, 242);
@@ -649,7 +659,7 @@ namespace CodexRouterSwitch
 
         private void PrimaryActionClicked(object sender, EventArgs e)
         {
-            if (primaryActionHandler != null)
+            if (!busy && !refreshing && primaryActionHandler != null)
             {
                 primaryActionHandler();
             }
@@ -657,7 +667,7 @@ namespace CodexRouterSwitch
 
         private void SecondaryActionClicked(object sender, EventArgs e)
         {
-            if (secondaryActionHandler != null)
+            if (!busy && !refreshing && secondaryActionHandler != null)
             {
                 secondaryActionHandler();
             }
@@ -678,15 +688,22 @@ namespace CodexRouterSwitch
             await RefreshStatusAsync(true);
         }
 
-        private static void OpenTaskManager()
+        private void OpenTaskManager()
         {
-            Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = "taskmgr.exe",
-                    UseShellExecute = true
-                }
-            );
+            try
+            {
+                Process.Start(
+                    new ProcessStartInfo
+                    {
+                        FileName = "taskmgr.exe",
+                        UseShellExecute = true
+                    }
+                );
+            }
+            catch (Exception error)
+            {
+                ShowError("Task Manager could not be opened: " + error.Message);
+            }
         }
 
         private void OpenLogClicked(object sender, EventArgs e)
@@ -701,11 +718,18 @@ namespace CodexRouterSwitch
                 return;
             }
 
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = "notepad.exe";
-            startInfo.Arguments = "\"" + path.Replace("\"", "\"\"") + "\"";
-            startInfo.UseShellExecute = true;
-            Process.Start(startInfo);
+            try
+            {
+                ProcessStartInfo startInfo = new ProcessStartInfo();
+                startInfo.FileName = "notepad.exe";
+                startInfo.Arguments = "\"" + path.Replace("\"", "\"\"") + "\"";
+                startInfo.UseShellExecute = true;
+                Process.Start(startInfo);
+            }
+            catch (Exception error)
+            {
+                ShowError("The Router log could not be opened: " + error.Message);
+            }
         }
 
         private void CopyDiagnosticsClicked(object sender, EventArgs e)
@@ -771,9 +795,19 @@ namespace CodexRouterSwitch
                 return path;
             }
 
-            if (path.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase))
+            string profileRoot = userProfile.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar
+            );
+            if (String.Equals(path, profileRoot, StringComparison.OrdinalIgnoreCase))
             {
-                return "%USERPROFILE%" + path.Substring(userProfile.Length);
+                return "%USERPROFILE%";
+            }
+
+            string profilePrefix = profileRoot + Path.DirectorySeparatorChar;
+            if (path.StartsWith(profilePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return "%USERPROFILE%" + path.Substring(profileRoot.Length);
             }
             return path;
         }
@@ -808,15 +842,25 @@ namespace CodexRouterSwitch
         private void SetBusy(bool value, string message)
         {
             busy = value;
-            nativeMode.Enabled = !value;
-            routerMode.Enabled = !value;
-            refreshButton.Enabled = !value;
+            bool interactionEnabled = !value && !refreshing;
+            nativeMode.Enabled = interactionEnabled;
+            routerMode.Enabled = interactionEnabled;
+            refreshButton.Enabled = interactionEnabled;
             openLogButton.Enabled = !value && File.Exists(controller.Paths.RouterLog);
             copyDiagnosticsButton.Enabled = !value;
-            primaryAction.Enabled = !value;
-            secondaryAction.Enabled = !value;
+            primaryAction.Enabled = interactionEnabled;
+            secondaryAction.Enabled = interactionEnabled;
             busyLine.Active = value;
             UseWaitCursor = value;
+
+            if (value)
+            {
+                refreshTimer.Stop();
+            }
+            else if (Form.ActiveForm == this)
+            {
+                refreshTimer.Start();
+            }
 
             if (value && !String.IsNullOrWhiteSpace(message))
             {
@@ -827,6 +871,17 @@ namespace CodexRouterSwitch
                 statusDetail.Text = message;
                 ClearActions();
             }
+        }
+
+        private void SetRefreshing(bool value)
+        {
+            refreshing = value;
+            bool interactionEnabled = !value && !busy;
+            nativeMode.Enabled = interactionEnabled;
+            routerMode.Enabled = interactionEnabled;
+            refreshButton.Enabled = interactionEnabled;
+            primaryAction.Enabled = interactionEnabled;
+            secondaryAction.Enabled = interactionEnabled;
         }
 
         private void MainFormClosing(object sender, FormClosingEventArgs e)
@@ -845,6 +900,29 @@ namespace CodexRouterSwitch
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
             );
+        }
+
+        internal bool RunInteractionGuardSelfTest()
+        {
+            Action savedPrimaryHandler = primaryActionHandler;
+            bool invoked = false;
+            try
+            {
+                primaryActionHandler = delegate { invoked = true; };
+                SetRefreshing(true);
+                bool controlsDisabled =
+                    !nativeMode.Enabled &&
+                    !routerMode.Enabled &&
+                    !primaryAction.Enabled &&
+                    !secondaryAction.Enabled;
+                PrimaryActionClicked(this, EventArgs.Empty);
+                return controlsDisabled && !invoked;
+            }
+            finally
+            {
+                primaryActionHandler = savedPrimaryHandler;
+                SetRefreshing(false);
+            }
         }
 
         protected override void Dispose(bool disposing)
@@ -883,12 +961,21 @@ namespace CodexRouterSwitch
                         values["windowDisplayed"] = false;
                         values["mutationsPerformed"] = false;
                         values["enhancedUi"] = true;
+                        values["refreshMutationGuard"] =
+                            form.RunInteractionGuardSelfTest();
+                        values["legacyArgsRestricted"] =
+                            HasLegacyCommandLineArgument(
+                                new string[] { "--self-test-file", "result.json" }
+                            ) &&
+                            !HasLegacyCommandLineArgument(
+                                new string[] { "--unrecognized" }
+                            );
                         WriteJsonResult(resultFile, values);
                     }
                     return 0;
                 }
 
-                if (args != null && args.Length > 0)
+                if (HasLegacyCommandLineArgument(args))
                 {
                     return InvokeLegacyCommandLine(args);
                 }
@@ -986,6 +1073,12 @@ namespace CodexRouterSwitch
                 }
             }
             return false;
+        }
+
+        private static bool HasLegacyCommandLineArgument(string[] args)
+        {
+            return HasArgument(args, "--self-test-file") ||
+                HasArgument(args, "--status-file");
         }
 
         private static string FindResultFile(string[] args, string name)

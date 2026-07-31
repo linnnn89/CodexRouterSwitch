@@ -110,6 +110,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 完整测试会：
 
 - 解析 PowerShell 脚本；
+- 验证仓库提交的 `dist\CodexRouterSwitch.exe` 确实使用增强版界面；
 - 编译增强版 EXE；
 - 验证增强版 GUI 可在不显示窗口、不改变配置的情况下实例化；
 - 验证 EXE 仍可调用原控制器的只读自检；
