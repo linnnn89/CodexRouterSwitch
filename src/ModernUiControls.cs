@@ -209,6 +209,7 @@ namespace CodexRouterSwitch
 
         protected override void OnPaint(PaintEventArgs pevent)
         {
+            base.OnPaintBackground(pevent);
             pevent.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             Rectangle bounds = new Rectangle(1, 1, Width - 3, Height - 3);
             if (bounds.Width <= 0 || bounds.Height <= 0)
