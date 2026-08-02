@@ -10,6 +10,7 @@ $sources = @(
   (Join-Path $sourceRoot "EnhancedMainForm.cs")
 )
 $manifest = Join-Path $sourceRoot "app.manifest"
+$icon = Join-Path $PSScriptRoot "assets\icon\CodexRouterSwitch.ico"
 $dist = Join-Path $PSScriptRoot "dist"
 $output = Join-Path $dist "CodexRouterSwitch.exe"
 
@@ -28,6 +29,9 @@ foreach ($source in $sources) {
   if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
     throw "Required C# source file was not found: $source"
   }
+}
+if (-not (Test-Path -LiteralPath $icon -PathType Leaf)) {
+  throw "Application icon was not found: $icon"
 }
 
 New-Item -ItemType Directory -Path $dist -Force | Out-Null
@@ -51,6 +55,7 @@ $arguments = @(
   "/warn:4",
   "/utf8output",
   "/win32manifest:$manifest",
+  "/win32icon:$icon",
   "/out:$output"
 )
 $arguments += $references | ForEach-Object { "/reference:$_" }
@@ -71,6 +76,7 @@ $hash = Get-FileHash -LiteralPath $output -Algorithm SHA256
   Compiler = $compiler
   EntryPoint = "CodexRouterSwitch.EnhancedProgram"
   Sources = $sources
+  Icon = $icon
   Output = $item.FullName
   Bytes = $item.Length
   SHA256 = $hash.Hash

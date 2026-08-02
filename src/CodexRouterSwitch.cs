@@ -17,8 +17,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Safe ON/OFF switch for a local Codex Router installation")]
 [assembly: System.Reflection.AssemblyCompany("CodexRouterSwitch")]
 [assembly: System.Reflection.AssemblyProduct("Codex Router Switch")]
-[assembly: System.Reflection.AssemblyVersion("1.2.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.2.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.3.0")]
 
 namespace CodexRouterSwitch
 {

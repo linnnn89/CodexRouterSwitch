@@ -103,7 +103,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 构建脚本显式选择唯一的 `CodexRouterSwitch.EnhancedProgram` 入口，由该入口直接处理
 GUI、状态读取和只读自检；路由控制器与进程安全边界保持不变。生成文件的程序集版本为
-`1.2.2.0`。入口会在当前程序进程内将可能重复的 `Path` / `PATH` 收敛为单一
+`1.2.3.0`。构建会把 `assets\icon\CodexRouterSwitch.ico` 中的
+`16/20/24/32/40/48/64/128/256 px` 图标嵌入 EXE；入口会在当前程序进程内将可能重复的 `Path` / `PATH` 收敛为单一
 `PATH`，兼容由 Codex、IDE 或其他启动器继承的异常环境块；不会修改 Windows 用户或
 系统环境变量。
 

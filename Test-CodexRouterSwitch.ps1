@@ -3,8 +3,60 @@ param()
 
 $ErrorActionPreference = "Stop"
 
+function Get-IcoSizes {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  $stream = [IO.File]::OpenRead($Path)
+  $reader = New-Object IO.BinaryReader($stream)
+  try {
+    if ($reader.ReadUInt16() -ne 0 -or $reader.ReadUInt16() -ne 1) {
+      throw "The icon header is invalid."
+    }
+    $count = $reader.ReadUInt16()
+    $sizes = @()
+    for ($index = 0; $index -lt $count; $index++) {
+      $width = [int]$reader.ReadByte()
+      $height = [int]$reader.ReadByte()
+      if ($width -eq 0) {
+        $width = 256
+      }
+      if ($height -eq 0) {
+        $height = 256
+      }
+      [void]$reader.ReadBytes(14)
+      $sizes += "$width`x$height"
+    }
+    return $sizes
+  } finally {
+    $reader.Dispose()
+    $stream.Dispose()
+  }
+}
+
 $switchScript = Join-Path $PSScriptRoot "CodexRouterSwitch.ps1"
 $buildScript = Join-Path $PSScriptRoot "Build-Exe.ps1"
+$iconPath = Join-Path $PSScriptRoot "assets\icon\CodexRouterSwitch.ico"
+$expectedIconSizes = @(
+  "16x16",
+  "20x20",
+  "24x24",
+  "32x32",
+  "40x40",
+  "48x48",
+  "64x64",
+  "128x128",
+  "256x256"
+)
+if (-not (Test-Path -LiteralPath $iconPath -PathType Leaf)) {
+  throw "The multi-size application icon was not found."
+}
+$actualIconSizes = @(Get-IcoSizes -Path $iconPath)
+if (
+  ($actualIconSizes -join ",") -ne
+  ($expectedIconSizes -join ",")
+) {
+  throw "Unexpected ICO sizes: $($actualIconSizes -join ', ')"
+}
 $routerRoot = $env:CODEX_ROUTER_SWITCH_ROUTER_ROOT
 if ([String]::IsNullOrWhiteSpace($routerRoot)) {
   $routerRoot = Join-Path $env:LOCALAPPDATA "codex-router"
@@ -81,7 +133,7 @@ if (
   -not $committedGuiTest.pureChineseUi -or
   -not $committedGuiTest.layoutSafe -or
   $committedGuiTest.uiLanguage -ne "zh-CN" -or
-  $committedGuiTest.version -ne "1.2.2" -or
+  $committedGuiTest.version -ne "1.2.3" -or
   -not $committedGuiTest.refreshMutationGuard -or
   -not $committedGuiTest.readOnlyArgsRestricted -or
   $committedGuiTest.windowDisplayed -or
@@ -105,12 +157,25 @@ if (-not $build.Ok -or -not (Test-Path -LiteralPath $build.Output -PathType Leaf
 if ($build.EntryPoint -ne "CodexRouterSwitch.EnhancedProgram") {
   throw "Build-Exe did not select the enhanced UI entry point."
 }
+if (
+  -not (Test-Path -LiteralPath $iconPath -PathType Leaf) -or
+  $build.Icon -ne $iconPath
+) {
+  throw "Build-Exe did not use the expected application icon."
+}
 $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName(
   $build.Output
 ).Version.ToString()
-if ($assemblyVersion -ne "1.2.2.0") {
+if ($assemblyVersion -ne "1.2.3.0") {
   throw "Unexpected EXE assembly version: $assemblyVersion"
 }
+
+Add-Type -AssemblyName System.Drawing
+$embeddedIcon = [Drawing.Icon]::ExtractAssociatedIcon($build.Output)
+if ($null -eq $embeddedIcon) {
+  throw "The rebuilt EXE does not expose an associated application icon."
+}
+$embeddedIcon.Dispose()
 
 $exeTestRoot = Join-Path (
   Join-Path $PSScriptRoot "work\test_outputs"
@@ -134,7 +199,7 @@ if (
   -not $exeGuiTest.pureChineseUi -or
   -not $exeGuiTest.layoutSafe -or
   $exeGuiTest.uiLanguage -ne "zh-CN" -or
-  $exeGuiTest.version -ne "1.2.2" -or
+  $exeGuiTest.version -ne "1.2.3" -or
   -not $exeGuiTest.refreshMutationGuard -or
   -not $exeGuiTest.readOnlyArgsRestricted -or
   $exeGuiTest.windowDisplayed -or
@@ -246,6 +311,7 @@ try {
   EnhancedGuiSelfTest = "pass"
   ModernChineseUi = "pass"
   LayoutSelfTest = "pass"
+  MultiSizeApplicationIcon = "pass"
   AssemblyVersion = $assemblyVersion
   EnhancedControllerSelfTest = "pass"
   IsolatedEnableDisable = "pass"
