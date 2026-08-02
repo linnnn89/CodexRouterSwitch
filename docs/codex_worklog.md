@@ -81,3 +81,50 @@
     均保持所选方案；截图夹具位于忽略的 `work/`，未纳入发布代码。
   - 控制器自检按预期以中文错误报告本机缺少
     `codex-router\src\config-manager.mjs`；真实 Codex 配置未改变。
+
+## 2026-08-02 v1.2.1 Path/PATH 兼容修复
+
+- 目标：修复程序从同时含有 `Path` 和 `PATH` 的启动器环境继承变量时，
+  .NET Framework `ProcessStartInfo.EnvironmentVariables` 因重复键退出的问题。
+- 实现：
+  - 仅在现有 `EnhancedProgram` 入口增加进程级 PATH 规范化；
+  - 保留原有 PATH 值，将当前程序进程内的键收敛为单一 `PATH`；
+  - 不修改 Windows 用户或系统环境变量，不新增文件、依赖或配置层；
+  - 程序、清单和自检版本更新为 `1.2.1` / `1.2.1.0`。
+- 验证：
+  - 未预先清理测试终端环境，直接运行新版 EXE 的状态读取、控制器 SelfTest 和
+    GUI SelfTest：通过，原重复键错误消失；
+  - 完整测试通过：PowerShell 语法、已提交分发 EXE、源码重编译、现代中文 UI、
+    最小布局、控制器只读自检和隔离 enable/disable 均为 `pass`；
+  - 真实 Codex 配置未修改，状态测试前后均为 `Off / False`；
+  - 最终 EXE 为 71,680 bytes，SHA-256
+    `A22419B310D21EDE8DA1921027171EC8C4F9AD72CB38007D8FFD978B79842D0C`。
+- 发布状态：仅完成本地修复与构建，尚未提交或推送到 GitHub。
+
+## 2026-08-02 v1.2.2 标题栏重绘修复
+
+- 目标：修复鼠标依次经过最小化、最大化和关闭按钮后，前两个按钮残留悬停/焦点
+  边框及底色的“贴图错误”。
+- 证据：
+  - 用户截图：`../../work/ui_audit/v1.2.1-titlebar/01-titlebar-glyph-error.png`；
+  - 修复后精确悬停序列：
+    `../../work/ui_audit/v1.2.1-titlebar/07-fixed-titlebar-exact-hover.png`。
+- 根因：
+  - `ModernButton` 的空闲态使用透明填充，但自绘前没有显式重绘父背景；
+  - 标题栏按钮的中间 `FlowLayoutPanel` 同样为透明背景；
+  - WinForms 在悬停/离开和焦点切换后可能保留上一帧像素，因此看起来像错误图标贴图。
+- 修复：
+  - `ModernButton.OnPaint` 每帧先调用背景绘制，再绘制当前状态；
+  - 标题栏按钮容器改用与标题栏一致的实色背景；
+  - 未替换图标字体、Glyph 编码或按钮交互，视觉目标和无障碍名称保持不变；
+  - 程序、清单和自检版本更新为 `1.2.2` / `1.2.2.0`。
+- 验证：
+  - 按实际子控件顺序模拟“最小化 → 最大化 → 关闭”，关闭按钮保持红色悬停态，
+    前两个按钮恢复干净背景，无残影；
+  - 完整回归通过：语法、分发 EXE、源码重编译、现代中文 UI、布局、控制器自检及
+    隔离 enable/disable 均为 `pass`；
+  - 沙盒内完整测试首次因无权读取真实 `C:\Users\6\.codex\config.toml` 而停止；
+    获得只读测试许可后通过，真实 Codex 配置未修改；
+  - 最终 EXE 为 71,680 bytes，SHA-256
+    `BFB4338992CFF108DC8544225610642CCD81AA78973AF207FBE9374399148052`。
+- 发布状态：仅完成本地修复与构建，尚未提交或推送到 GitHub。

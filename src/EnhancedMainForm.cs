@@ -134,7 +134,7 @@ namespace CodexRouterSwitch
             windowActions.WrapContents = false;
             windowActions.Padding = new Padding(2, 7, 4, 7);
             windowActions.Margin = Padding.Empty;
-            windowActions.BackColor = Color.Transparent;
+            windowActions.BackColor = ModernUi.TitleBar;
             titleBar.Controls.Add(windowActions);
 
             ModernButton minimizeButton = CreateTitleBarButton(
@@ -1811,6 +1811,8 @@ namespace CodexRouterSwitch
             string resultFile = null;
             try
             {
+                NormalizeProcessPathVariable();
+
                 if (HasArgument(args, "--self-test-file"))
                 {
                     resultFile = FindResultFile(args, "--self-test-file");
@@ -1855,7 +1857,7 @@ namespace CodexRouterSwitch
                         values["pureChineseUi"] = form.RunChineseUiSelfTest();
                         values["layoutSafe"] = form.RunLayoutSelfTest();
                         values["uiLanguage"] = "zh-CN";
-                        values["version"] = "1.2.0";
+                        values["version"] = "1.2.2";
                         values["refreshMutationGuard"] =
                             form.RunInteractionGuardSelfTest();
                         values["readOnlyArgsRestricted"] =
@@ -1944,6 +1946,32 @@ namespace CodexRouterSwitch
                     appMutex = null;
                 }
             }
+        }
+
+        private static void NormalizeProcessPathVariable()
+        {
+            string pathValue = Environment.GetEnvironmentVariable(
+                "PATH",
+                EnvironmentVariableTarget.Process
+            );
+            if (pathValue == null)
+            {
+                return;
+            }
+
+            // Windows treats environment names case-insensitively, but an
+            // inherited block can still contain both Path and PATH. The
+            // .NET Framework ProcessStartInfo dictionary rejects that block.
+            Environment.SetEnvironmentVariable(
+                "Path",
+                null,
+                EnvironmentVariableTarget.Process
+            );
+            Environment.SetEnvironmentVariable(
+                "PATH",
+                pathValue,
+                EnvironmentVariableTarget.Process
+            );
         }
 
         private static bool HasArgument(string[] args, string name)
