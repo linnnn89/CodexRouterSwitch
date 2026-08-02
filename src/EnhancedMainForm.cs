@@ -69,7 +69,7 @@ namespace CodexRouterSwitch
             FormBorderStyle = FormBorderStyle.None;
             MaximizeBox = true;
             MinimizeBox = true;
-            ShowIcon = false;
+            ShowIcon = true;
             Padding = new Padding(1);
             BackColor = ModernUi.WindowBorder;
             Font = new Font("Microsoft YaHei UI", 10F);
@@ -103,14 +103,10 @@ namespace CodexRouterSwitch
             appMark.FillColor = ModernUi.Primary;
             appMark.BorderColor = ModernUi.Primary;
             appMark.Margin = Padding.Empty;
+            appMark.Padding = new Padding(2);
             titleBar.Controls.Add(appMark);
 
-            IconLabel appMarkIcon = new IconLabel();
-            appMarkIcon.Dock = DockStyle.Fill;
-            appMarkIcon.IconGlyph = "\uE895";
-            appMarkIcon.IconColor = Color.White;
-            appMarkIcon.IconSize = 15F;
-            appMarkIcon.AccessibleName = "路由切换图标";
+            Control appMarkIcon = CreateAppMarkIcon();
             appMark.Controls.Add(appMarkIcon);
 
             Label title = new Label();
@@ -636,6 +632,65 @@ namespace CodexRouterSwitch
             panel.BorderColor = Color.FromArgb(209, 218, 229);
             panel.CornerRadius = 11;
             return panel;
+        }
+
+        private static Control CreateAppMarkIcon()
+        {
+            string executableName = Path.GetFileName(
+                Application.ExecutablePath
+            );
+            if (
+                String.Equals(
+                    executableName,
+                    "CodexRouterSwitch.exe",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                try
+                {
+                    using (
+                        Icon icon = Icon.ExtractAssociatedIcon(
+                            Application.ExecutablePath
+                        )
+                    )
+                    {
+                        if (icon != null)
+                        {
+                            PictureBox picture = new PictureBox();
+                            picture.Dock = DockStyle.Fill;
+                            picture.Margin = Padding.Empty;
+                            picture.BackColor = Color.Transparent;
+                            picture.SizeMode = PictureBoxSizeMode.Zoom;
+                            picture.Image = icon.ToBitmap();
+                            picture.AccessibleName = "路由切换图标";
+                            picture.Disposed += delegate
+                            {
+                                Image image = picture.Image;
+                                picture.Image = null;
+                                if (image != null)
+                                {
+                                    image.Dispose();
+                                }
+                            };
+                            return picture;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Preserve the built-in glyph when the executable icon
+                    // cannot be read in a constrained launch environment.
+                }
+            }
+
+            IconLabel fallback = new IconLabel();
+            fallback.Dock = DockStyle.Fill;
+            fallback.IconGlyph = "\uE895";
+            fallback.IconColor = Color.White;
+            fallback.IconSize = 15F;
+            fallback.AccessibleName = "路由切换图标";
+            return fallback;
         }
 
         private static ModeOption CreateModeOption(
@@ -1857,7 +1912,7 @@ namespace CodexRouterSwitch
                         values["pureChineseUi"] = form.RunChineseUiSelfTest();
                         values["layoutSafe"] = form.RunLayoutSelfTest();
                         values["uiLanguage"] = "zh-CN";
-                        values["version"] = "1.2.2";
+                        values["version"] = "1.2.3";
                         values["refreshMutationGuard"] =
                             form.RunInteractionGuardSelfTest();
                         values["readOnlyArgsRestricted"] =
