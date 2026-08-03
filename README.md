@@ -34,7 +34,7 @@ v1.2 使用纯中文的现代 Windows 界面，采用自绘圆角按钮、模式
 - 窗口处于活动状态时每 5 秒自动刷新状态。
 
 内部状态 `Degraded` 表示 Codex 已配置为使用 Router，但 Router 健康检查失败。
-内部状态 `Orphaned` 表示原生 Codex 已恢复，但端口 `4102` 上仍检测到一个不受本程序管理的
+内部状态 `Orphaned` 表示原生 Codex 已恢复，但配置的路由端口上仍检测到一个不受本程序管理的
 Router 进程。程序不会自动终止未知进程。
 
 ## 前提
@@ -46,7 +46,14 @@ Router 进程。程序不会自动终止未知进程。
   `%USERPROFILE%\.codex`；
 - Node.js 可用，或者已由 Codex/Hermes 提供本机 Node.js。
 
-如安装位置不同，可在启动程序前设置
+默认健康检查端口为 `4102`。如果 Router 使用了其他端口，可在启动程序前设置
+`CODEX_ROUTER_SWITCH_ROUTER_PORT`，例如：
+
+```powershell
+$env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "4106"
+```
+
+如安装位置不同，也可设置
 `CODEX_ROUTER_SWITCH_ROUTER_ROOT` 和 `CODEX_ROUTER_SWITCH_CODEX_HOME`。
 本项目不会索取、保存或上传供应商 API Key。
 
@@ -80,7 +87,7 @@ Router 进程。程序不会自动终止未知进程。
 - 恢复 Native Codex 使用仓库自身的 `config-manager.mjs disable` 和
   `service.mjs uninstall`。
 - 仅终止本程序记录并验证过的可见命令窗口进程树；不会根据端口粗暴终止未知进程。
-- 如果端口 `4102` 被未知 Router 进程占用，程序会停止切换并显示 Orphaned/异常状态，
+- 如果配置的路由端口被未知 Router 进程占用，程序会停止切换并显示 Orphaned/异常状态，
   而不是杀死无关进程。
 - Router 启动失败时，如果原先是 Native Codex，会自动回滚到原生配置。
 - 诊断报告不包含 API Key、OAuth Token、供应商凭据或完整 managed capability URL，
@@ -103,7 +110,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 构建脚本显式选择唯一的 `CodexRouterSwitch.EnhancedProgram` 入口，由该入口直接处理
 GUI、状态读取和只读自检；路由控制器与进程安全边界保持不变。生成文件的程序集版本为
-`1.2.3.0`。构建会把 `assets\icon\CodexRouterSwitch.ico` 中的
+`1.2.4.0`。构建会把 `assets\icon\CodexRouterSwitch.ico` 中的
 `16/20/24/32/40/48/64/128/256 px` 图标嵌入 EXE；入口会在当前程序进程内将可能重复的 `Path` / `PATH` 收敛为单一
 `PATH`，兼容由 Codex、IDE 或其他启动器继承的异常环境块；不会修改 Windows 用户或
 系统环境变量。
