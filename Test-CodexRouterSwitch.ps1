@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 
 $ErrorActionPreference = "Stop"
@@ -78,18 +78,47 @@ if ($parseErrors.Count -gt 0) {
   throw ($parseErrors | Out-String)
 }
 
-$selfTestRaw = & powershell.exe `
-  -NoLogo `
-  -NoProfile `
-  -ExecutionPolicy Bypass `
-  -File $switchScript `
-  -Mode SelfTest
-if ($LASTEXITCODE -ne 0) {
-  throw "SelfTest failed: $selfTestRaw"
-}
-$selfTest = $selfTestRaw | ConvertFrom-Json
-if (-not $selfTest.Ok -or $selfTest.MutationsPerformed) {
-  throw "SelfTest returned an unexpected result."
+$savedRouterPort = $env:CODEX_ROUTER_SWITCH_ROUTER_PORT
+try {
+  $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "4102"
+  $selfTestRaw = & powershell.exe `
+    -NoLogo `
+    -NoProfile `
+    -ExecutionPolicy Bypass `
+    -File $switchScript `
+    -Mode SelfTest
+  if ($LASTEXITCODE -ne 0) {
+    throw "SelfTest failed: $selfTestRaw"
+  }
+  $selfTest = $selfTestRaw | ConvertFrom-Json
+  if (
+    -not $selfTest.Ok -or
+    $selfTest.MutationsPerformed -or
+    [int]$selfTest.RouterPort -ne 4102
+  ) {
+    throw "SelfTest returned an unexpected default port result."
+  }
+
+  $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "4177"
+  $portSelfTestRaw = & powershell.exe `
+    -NoLogo `
+    -NoProfile `
+    -ExecutionPolicy Bypass `
+    -File $switchScript `
+    -Mode SelfTest
+  if ($LASTEXITCODE -ne 0) {
+    throw "Configurable port SelfTest failed: $portSelfTestRaw"
+  }
+  $portSelfTest = $portSelfTestRaw | ConvertFrom-Json
+  if (
+    -not $portSelfTest.Ok -or
+    $portSelfTest.MutationsPerformed -or
+    [int]$portSelfTest.RouterPort -ne 4177
+  ) {
+    throw "SelfTest did not honor CODEX_ROUTER_SWITCH_ROUTER_PORT."
+  }
+} finally {
+  $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = $savedRouterPort
 }
 
 $guiTestRaw = & powershell.exe `
@@ -133,7 +162,7 @@ if (
   -not $committedGuiTest.pureChineseUi -or
   -not $committedGuiTest.layoutSafe -or
   $committedGuiTest.uiLanguage -ne "zh-CN" -or
-  $committedGuiTest.version -ne "1.2.3" -or
+  $committedGuiTest.version -ne "1.2.4" -or
   -not $committedGuiTest.refreshMutationGuard -or
   -not $committedGuiTest.readOnlyArgsRestricted -or
   $committedGuiTest.windowDisplayed -or
@@ -166,8 +195,33 @@ if (
 $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName(
   $build.Output
 ).Version.ToString()
-if ($assemblyVersion -ne "1.2.3.0") {
+if ($assemblyVersion -ne "1.2.4.0") {
   throw "Unexpected EXE assembly version: $assemblyVersion"
+}
+
+$invalidPortResult = Join-Path $distributionTestRoot "invalid-port.json"
+$savedRouterPort = $env:CODEX_ROUTER_SWITCH_ROUTER_PORT
+try {
+  $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "70000"
+  $invalidPortProcess = Start-Process `
+    -FilePath $build.Output `
+    -ArgumentList @("--status-file", $invalidPortResult) `
+    -Wait `
+    -PassThru
+  if ($invalidPortProcess.ExitCode -ne 1) {
+    throw "Invalid Router port was not rejected."
+  }
+  $invalidPort = Get-Content -LiteralPath $invalidPortResult -Encoding UTF8 -Raw |
+    ConvertFrom-Json
+  if (
+    $invalidPort.ok -or
+    $invalidPort.message -ne
+      "CODEX_ROUTER_SWITCH_ROUTER_PORT 必须是 1 到 65535 之间的整数。"
+  ) {
+    throw "Invalid Router port did not return the expected Chinese error."
+  }
+} finally {
+  $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = $savedRouterPort
 }
 
 Add-Type -AssemblyName System.Drawing
@@ -199,7 +253,7 @@ if (
   -not $exeGuiTest.pureChineseUi -or
   -not $exeGuiTest.layoutSafe -or
   $exeGuiTest.uiLanguage -ne "zh-CN" -or
-  $exeGuiTest.version -ne "1.2.3" -or
+  $exeGuiTest.version -ne "1.2.4" -or
   -not $exeGuiTest.refreshMutationGuard -or
   -not $exeGuiTest.readOnlyArgsRestricted -or
   $exeGuiTest.windowDisplayed -or
@@ -314,6 +368,7 @@ try {
   MultiSizeApplicationIcon = "pass"
   AssemblyVersion = $assemblyVersion
   EnhancedControllerSelfTest = "pass"
+  InvalidRouterPort = "pass"
   IsolatedEnableDisable = "pass"
   RealCodexConfigChanged = $false
   TestOutput = $testRoot

@@ -17,8 +17,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Safe ON/OFF switch for a local Codex Router installation")]
 [assembly: System.Reflection.AssemblyCompany("CodexRouterSwitch")]
 [assembly: System.Reflection.AssemblyProduct("Codex Router Switch")]
-[assembly: System.Reflection.AssemblyVersion("1.2.3.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.3.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.4.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.4.0")]
 
 namespace CodexRouterSwitch
 {
@@ -35,6 +35,7 @@ namespace CodexRouterSwitch
         public readonly string ServiceScript;
         public readonly string WindowsServiceScript;
         public readonly string RouterLog;
+        public readonly int RouterPort;
 
         public AppPaths()
         {
@@ -48,6 +49,10 @@ namespace CodexRouterSwitch
             RouterRoot = ReadOverride(
                 "CODEX_ROUTER_SWITCH_ROUTER_ROOT",
                 Path.Combine(localAppData, "codex-router")
+            );
+            RouterPort = ReadPortOverride(
+                "CODEX_ROUTER_SWITCH_ROUTER_PORT",
+                4102
             );
             CodexHome = ReadOverride(
                 "CODEX_ROUTER_SWITCH_CODEX_HOME",
@@ -74,6 +79,31 @@ namespace CodexRouterSwitch
             return String.IsNullOrWhiteSpace(value)
                 ? Path.GetFullPath(fallback)
                 : Path.GetFullPath(value);
+        }
+
+        private static int ReadPortOverride(string name, int fallback)
+        {
+            string value = Environment.GetEnvironmentVariable(name);
+            if (String.IsNullOrWhiteSpace(value))
+            {
+                return fallback;
+            }
+
+            int port;
+            if (!Int32.TryParse(
+                    value.Trim(),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out port
+                ) ||
+                port < 1 ||
+                port > 65535)
+            {
+                throw new InvalidOperationException(
+                    "CODEX_ROUTER_SWITCH_ROUTER_PORT must be an integer from 1 to 65535."
+                );
+            }
+            return port;
         }
     }
 
@@ -234,6 +264,7 @@ namespace CodexRouterSwitch
             result["node"] = nodePath;
             result["configMode"] = config.Mode;
             result["model"] = config.Model;
+            result["routerPort"] = paths.RouterPort;
             result["startScriptRender"] = "valid";
             result["mutationsPerformed"] = false;
             return result;
@@ -272,7 +303,7 @@ namespace CodexRouterSwitch
                 if (!WaitForRouterHealth(false, 20))
                 {
                     throw new InvalidOperationException(
-                        "A Router process not owned by this switch still responds on port 4102."
+                        "A Router process not owned by this switch still responds on the configured Router port."
                     );
                 }
 
@@ -411,7 +442,7 @@ namespace CodexRouterSwitch
             if (!WaitForRouterHealth(false, 20))
             {
                 result.Warnings.Add(
-                    "Native Codex was restored, but an untracked process still responds on port 4102."
+                    "Native Codex was restored, but an untracked process still responds on the configured Router port."
                 );
             }
 
@@ -780,7 +811,9 @@ namespace CodexRouterSwitch
             try
             {
                 request = (HttpWebRequest)WebRequest.Create(
-                    "http://127.0.0.1:4102/health"
+                    "http://127.0.0.1:" +
+                    paths.RouterPort.ToString(CultureInfo.InvariantCulture) +
+                    "/health"
                 );
                 request.Method = "GET";
                 request.Timeout = timeoutMilliseconds;

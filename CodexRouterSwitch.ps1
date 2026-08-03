@@ -6,6 +6,28 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Resolve-RouterPort {
+  param([string]$Value)
+
+  if ([String]::IsNullOrWhiteSpace($Value)) {
+    return 4102
+  }
+
+  $port = 0
+  if (-not [int]::TryParse(
+      $Value.Trim(),
+      [Globalization.NumberStyles]::None,
+      [Globalization.CultureInfo]::InvariantCulture,
+      [ref]$port
+    ) -or $port -lt 1 -or $port -gt 65535) {
+    throw "CODEX_ROUTER_SWITCH_ROUTER_PORT must be an integer from 1 to 65535."
+  }
+  return $port
+}
+
+$RouterPort = Resolve-RouterPort -Value $env:CODEX_ROUTER_SWITCH_ROUTER_PORT
+$RouterHealthUrl = "http://127.0.0.1:$RouterPort/health"
+
 $RouterRoot = $env:CODEX_ROUTER_SWITCH_ROUTER_ROOT
 if ([String]::IsNullOrWhiteSpace($RouterRoot)) {
   $RouterRoot = Join-Path $env:LOCALAPPDATA "codex-router"
@@ -192,7 +214,7 @@ function Test-RouterHealth {
   $request = $null
   $response = $null
   try {
-    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:4102/health")
+    $request = [System.Net.HttpWebRequest]::Create($RouterHealthUrl)
     $request.Method = "GET"
     $request.Timeout = $TimeoutMilliseconds
     $request.ReadWriteTimeout = $TimeoutMilliseconds
@@ -256,6 +278,7 @@ function Get-SwitchStatus {
     Healthy = $healthy
     Model = $config.model
     ModelProvider = $config.model_provider
+    RouterPort = $RouterPort
     Message = $message
   }
 }
@@ -365,7 +388,7 @@ function Enable-RouterVisible {
       -TimeoutMilliseconds 30000)
 
     if (-not (Wait-RouterHealth -Expected $false -TimeoutSeconds 20)) {
-      throw "A router process that was not started by this switch still owns port 4102."
+      throw "A router process that was not started by this switch still owns the configured Router port."
     }
 
     [void](Invoke-RouterNode `
@@ -437,7 +460,7 @@ function Disable-RouterKeepSettings {
 
   if (-not (Wait-RouterHealth -Expected $false -TimeoutSeconds 20)) {
     $warnings.Add(
-      "Native Codex was restored, but an untracked process still responds on port 4102."
+      "Native Codex was restored, but an untracked process still responds on the configured Router port."
     )
   }
 
@@ -451,6 +474,7 @@ function Disable-RouterKeepSettings {
     State = "Off"
     Message = $message
     Warnings = @($warnings)
+    RouterPort = $RouterPort
   }
 }
 
@@ -485,6 +509,7 @@ function Invoke-SelfTest {
     Node = $nodePath
     ConfigMode = $config.mode
     Model = $config.model
+    RouterPort = $RouterPort
     StartScriptRender = "valid"
     MutationsPerformed = $false
   }
