@@ -172,3 +172,20 @@
   隔离 enable/disable 均通过；真实 Codex 配置未改变。
 - 发布状态：基于 `agent/add-win11-multisize-icon-v1.2.3` 创建端口修正分支，待本地验证
   后提交 PR。
+
+## 2026-08-19 v1.2.5 自动探测当前 Router 端口
+
+- 目标：在 v1.2.4 已支持手动覆盖端口的基础上，自动识别 Codex Router 0.4.x 的新默认
+  端口 `4202`，避免未设置环境变量时把正在运行的 Router 误判为 `Degraded`。
+- 实现：
+  - 保留 `CODEX_ROUTER_SWITCH_ROUTER_PORT` 显式覆盖；
+  - 未覆盖时按 `service-process.json`、`start-codex-router.cmd`、Router 环境变量、
+    新默认 `4202` 的顺序解析；
+  - 界面、诊断、PowerShell 兼容入口和测试同步使用解析到的端口。
+- 验证：
+  - 真实本机只读状态为 `On` / `healthy=true` / `routerPort=4202`，未执行真实 ON/OFF；
+  - 完整回归通过，真实 Codex 配置未修改；
+  - 最终 EXE 为 211,456 bytes，程序集版本 `1.2.5.0`，SHA-256
+    `08BFA1B8685E7C81F6645022ADD45912EF0EFAFA2A22E18AFE135C699CDDD78E`；
+  - 已复制到桌面 `C:\Users\6\Desktop\CodexRouterSwitch.exe`。
+- 发布状态：按用户授权同步到 GitHub。

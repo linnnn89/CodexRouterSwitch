@@ -6,27 +6,71 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Resolve-RouterPort {
+function Test-TcpPort {
   param([string]$Value)
 
-  if ([String]::IsNullOrWhiteSpace($Value)) {
-    return 4102
-  }
-
   $port = 0
+  if ([String]::IsNullOrWhiteSpace($Value)) {
+    return $false
+  }
   if (-not [int]::TryParse(
-      $Value.Trim(),
-      [Globalization.NumberStyles]::None,
+      $Value.Trim().Trim('"'),
+      [Globalization.NumberStyles]::Integer,
       [Globalization.CultureInfo]::InvariantCulture,
       [ref]$port
     ) -or $port -lt 1 -or $port -gt 65535) {
-    throw "CODEX_ROUTER_SWITCH_ROUTER_PORT must be an integer from 1 to 65535."
+    return $false
   }
   return $port
 }
 
-$RouterPort = Resolve-RouterPort -Value $env:CODEX_ROUTER_SWITCH_ROUTER_PORT
-$RouterHealthUrl = "http://127.0.0.1:$RouterPort/health"
+function Resolve-RouterPort {
+  param(
+    [string]$Value,
+    [string]$ServiceProcessPath,
+    [string]$StartScriptPath
+  )
+
+  if (-not [String]::IsNullOrWhiteSpace($Value)) {
+    $explicit = Test-TcpPort -Value $Value
+    if ($explicit -eq $false) {
+      throw "CODEX_ROUTER_SWITCH_ROUTER_PORT must be an integer from 1 to 65535."
+    }
+    return [int]$explicit
+  }
+
+  if (Test-Path -LiteralPath $ServiceProcessPath -PathType Leaf) {
+    try {
+      $payload = Get-Content -LiteralPath $ServiceProcessPath -Raw | ConvertFrom-Json
+      $detected = Test-TcpPort -Value ([string]$payload.ports.router)
+      if ($detected -ne $false) {
+        return [int]$detected
+      }
+    } catch {
+    }
+  }
+
+  if (Test-Path -LiteralPath $StartScriptPath -PathType Leaf) {
+    foreach ($rawLine in Get-Content -LiteralPath $StartScriptPath) {
+      $line = [string]$rawLine
+      if ($line -match '(?i)set\s+"?(?:MODEL_ROUTER_PORT|CODEX_ROUTER_PORT)=([0-9]{1,5})"?\s*$') {
+        $detected = Test-TcpPort -Value $Matches[1]
+        if ($detected -ne $false) {
+          return [int]$detected
+        }
+      }
+    }
+  }
+
+  foreach ($name in @("MODEL_ROUTER_PORT", "CODEX_ROUTER_PORT", "KIMI_ROUTER_PORT")) {
+    $detected = Test-TcpPort -Value ([Environment]::GetEnvironmentVariable($name))
+    if ($detected -ne $false) {
+      return [int]$detected
+    }
+  }
+
+  return 4202
+}
 
 $RouterRoot = $env:CODEX_ROUTER_SWITCH_ROUTER_ROOT
 if ([String]::IsNullOrWhiteSpace($RouterRoot)) {
@@ -41,6 +85,12 @@ if ([String]::IsNullOrWhiteSpace($CodexHome)) {
 $CodexHome = [IO.Path]::GetFullPath($CodexHome)
 $RouterStateRoot = Join-Path $CodexHome "codex-router"
 $RouterStartScript = Join-Path $RouterStateRoot "start-codex-router.cmd"
+$ServiceProcessPath = Join-Path $RouterStateRoot "service-process.json"
+$RouterPort = Resolve-RouterPort `
+  -Value $env:CODEX_ROUTER_SWITCH_ROUTER_PORT `
+  -ServiceProcessPath $ServiceProcessPath `
+  -StartScriptPath $RouterStartScript
+$RouterHealthUrl = "http://127.0.0.1:$RouterPort/health"
 $VisibleLauncher = Join-Path $PSScriptRoot "Run-Visible-Codex-Router.cmd"
 $ConsoleStatePath = Join-Path $RouterStateRoot "router-switch-console.json"
 $ConfigManagerScript = Join-Path $RouterRoot "src\config-manager.mjs"

@@ -17,8 +17,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Safe ON/OFF switch for a local Codex Router installation")]
 [assembly: System.Reflection.AssemblyCompany("CodexRouterSwitch")]
 [assembly: System.Reflection.AssemblyProduct("Codex Router Switch")]
-[assembly: System.Reflection.AssemblyVersion("1.2.4.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.4.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.5.0")]
 
 namespace CodexRouterSwitch
 {
@@ -30,6 +30,7 @@ namespace CodexRouterSwitch
         public readonly string RouterStartScript;
         public readonly string VisibleWrapper;
         public readonly string ConsoleStatePath;
+        public readonly string ServiceProcessPath;
         public readonly string ConfigManagerScript;
         public readonly string CatalogScript;
         public readonly string ServiceScript;
@@ -50,10 +51,6 @@ namespace CodexRouterSwitch
                 "CODEX_ROUTER_SWITCH_ROUTER_ROOT",
                 Path.Combine(localAppData, "codex-router")
             );
-            RouterPort = ReadPortOverride(
-                "CODEX_ROUTER_SWITCH_ROUTER_PORT",
-                4102
-            );
             CodexHome = ReadOverride(
                 "CODEX_ROUTER_SWITCH_CODEX_HOME",
                 Path.Combine(userProfile, ".codex")
@@ -62,6 +59,7 @@ namespace CodexRouterSwitch
             RouterStartScript = Path.Combine(RouterStateRoot, "start-codex-router.cmd");
             VisibleWrapper = Path.Combine(RouterStateRoot, "router-switch-visible.cmd");
             ConsoleStatePath = Path.Combine(RouterStateRoot, "router-switch-console.json");
+            ServiceProcessPath = Path.Combine(RouterStateRoot, "service-process.json");
             ConfigManagerScript = Path.Combine(RouterRoot, "src", "config-manager.mjs");
             CatalogScript = Path.Combine(RouterRoot, "src", "catalog.mjs");
             ServiceScript = Path.Combine(RouterRoot, "src", "service.mjs");
@@ -71,6 +69,7 @@ namespace CodexRouterSwitch
                 "service-windows.mjs"
             );
             RouterLog = Path.Combine(RouterStateRoot, "router.log");
+            RouterPort = ResolveRouterPort();
         }
 
         private static string ReadOverride(string name, string fallback)
@@ -81,29 +80,198 @@ namespace CodexRouterSwitch
                 : Path.GetFullPath(value);
         }
 
-        private static int ReadPortOverride(string name, int fallback)
+        private int ResolveRouterPort()
         {
-            string value = Environment.GetEnvironmentVariable(name);
+            int port;
+            if (TryReadExplicitPortOverride(out port))
+            {
+                return port;
+            }
+            if (TryReadPortFromServiceProcess(out port))
+            {
+                return port;
+            }
+            if (TryReadPortFromStartScript(out port))
+            {
+                return port;
+            }
+            if (TryReadPortFromEnvironment(out port))
+            {
+                return port;
+            }
+            return 4202;
+        }
+
+        private static bool TryReadExplicitPortOverride(out int port)
+        {
+            port = 0;
+            string value = Environment.GetEnvironmentVariable("CODEX_ROUTER_SWITCH_ROUTER_PORT");
             if (String.IsNullOrWhiteSpace(value))
             {
-                return fallback;
+                return false;
             }
 
-            int port;
-            if (!Int32.TryParse(
-                    value.Trim(),
-                    NumberStyles.None,
-                    CultureInfo.InvariantCulture,
-                    out port
-                ) ||
-                port < 1 ||
-                port > 65535)
+            if (!TryParseTcpPort(value, out port))
             {
                 throw new InvalidOperationException(
                     "CODEX_ROUTER_SWITCH_ROUTER_PORT must be an integer from 1 to 65535."
                 );
             }
-            return port;
+            return true;
+        }
+
+        private bool TryReadPortFromServiceProcess(out int port)
+        {
+            port = 0;
+            if (!File.Exists(ServiceProcessPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                string contents = File.ReadAllText(ServiceProcessPath, Encoding.UTF8);
+                JavaScriptSerializer json = new JavaScriptSerializer();
+                Dictionary<string, object> values =
+                    json.Deserialize<Dictionary<string, object>>(contents);
+                if (values == null)
+                {
+                    return false;
+                }
+
+                object portsObject;
+                if (!values.TryGetValue("ports", out portsObject))
+                {
+                    return false;
+                }
+
+                Dictionary<string, object> ports = portsObject as Dictionary<string, object>;
+                if (ports == null)
+                {
+                    return false;
+                }
+
+                object routerPort;
+                if (!ports.TryGetValue("router", out routerPort) || routerPort == null)
+                {
+                    return false;
+                }
+                return TryParseTcpPort(
+                    Convert.ToString(routerPort, CultureInfo.InvariantCulture),
+                    out port
+                );
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool TryReadPortFromStartScript(out int port)
+        {
+            port = 0;
+            if (!File.Exists(RouterStartScript))
+            {
+                return false;
+            }
+
+            try
+            {
+                foreach (string rawLine in File.ReadAllLines(RouterStartScript))
+                {
+                    string line = rawLine.Trim();
+                    if (TryReadBatchPortAssignment(line, "MODEL_ROUTER_PORT", out port) ||
+                        TryReadBatchPortAssignment(line, "CODEX_ROUTER_PORT", out port))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private static bool TryReadBatchPortAssignment(
+            string line,
+            string variableName,
+            out int port
+        )
+        {
+            port = 0;
+            if (String.IsNullOrEmpty(line))
+            {
+                return false;
+            }
+
+            string prefix = "set \"" + variableName + "=";
+            if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                line.EndsWith("\"", StringComparison.Ordinal) &&
+                line.Length > prefix.Length + 1)
+            {
+                string raw = line.Substring(
+                    prefix.Length,
+                    line.Length - prefix.Length - 1
+                );
+                return TryParseTcpPort(raw, out port);
+            }
+
+            string unquoted = "set " + variableName + "=";
+            if (line.StartsWith(unquoted, StringComparison.OrdinalIgnoreCase) &&
+                line.Length > unquoted.Length)
+            {
+                return TryParseTcpPort(line.Substring(unquoted.Length), out port);
+            }
+
+            return false;
+        }
+
+        private static bool TryReadPortFromEnvironment(out int port)
+        {
+            string[] names = new string[]
+            {
+                "MODEL_ROUTER_PORT",
+                "CODEX_ROUTER_PORT",
+                "KIMI_ROUTER_PORT"
+            };
+            foreach (string name in names)
+            {
+                if (TryParseTcpPort(Environment.GetEnvironmentVariable(name), out port))
+                {
+                    return true;
+                }
+            }
+
+            port = 0;
+            return false;
+        }
+
+        private static bool TryParseTcpPort(string raw, out int port)
+        {
+            port = 0;
+            if (String.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            int parsed;
+            if (!Int32.TryParse(
+                    raw.Trim().Trim('"'),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out parsed
+                ) ||
+                parsed < 1 ||
+                parsed > 65535)
+            {
+                return false;
+            }
+
+            port = parsed;
+            return true;
         }
     }
 

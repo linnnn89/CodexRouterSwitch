@@ -46,8 +46,14 @@ Router 进程。程序不会自动终止未知进程。
   `%USERPROFILE%\.codex`；
 - Node.js 可用，或者已由 Codex/Hermes 提供本机 Node.js。
 
-默认健康检查端口为 `4102`。如果 Router 使用了其他端口，可在启动程序前设置
-`CODEX_ROUTER_SWITCH_ROUTER_PORT`，例如：
+默认会从当前 Codex Router 安装解析健康检查端口，顺序为：
+
+- `%USERPROFILE%\.codex\codex-router\service-process.json` 中的 `ports.router`；
+- `start-codex-router.cmd` 中的 `MODEL_ROUTER_PORT` / `CODEX_ROUTER_PORT`；
+- 进程环境变量 `MODEL_ROUTER_PORT`、`CODEX_ROUTER_PORT` 或 `KIMI_ROUTER_PORT`；
+- 新版默认端口 `4202`。
+
+如需强制指定端口，可在启动程序前设置 `CODEX_ROUTER_SWITCH_ROUTER_PORT`，例如：
 
 ```powershell
 $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "4106"
@@ -110,7 +116,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 构建脚本显式选择唯一的 `CodexRouterSwitch.EnhancedProgram` 入口，由该入口直接处理
 GUI、状态读取和只读自检；路由控制器与进程安全边界保持不变。生成文件的程序集版本为
-`1.2.4.0`。构建会把 `assets\icon\CodexRouterSwitch.ico` 中的
+`1.2.5.0`。构建会把 `assets\icon\CodexRouterSwitch.ico` 中的
 `16/20/24/32/40/48/64/128/256 px` 图标嵌入 EXE；入口会在当前程序进程内将可能重复的 `Path` / `PATH` 收敛为单一
 `PATH`，兼容由 Codex、IDE 或其他启动器继承的异常环境块；不会修改 Windows 用户或
 系统环境变量。
