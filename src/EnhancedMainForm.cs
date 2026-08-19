@@ -1927,7 +1927,7 @@ namespace CodexRouterSwitch
                         values["pureChineseUi"] = form.RunChineseUiSelfTest();
                         values["layoutSafe"] = form.RunLayoutSelfTest();
                         values["uiLanguage"] = "zh-CN";
-                        values["version"] = "1.2.4";
+                        values["version"] = "1.2.5";
                         values["refreshMutationGuard"] =
                             form.RunInteractionGuardSelfTest();
                         values["readOnlyArgsRestricted"] =

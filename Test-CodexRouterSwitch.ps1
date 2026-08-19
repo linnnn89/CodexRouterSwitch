@@ -79,8 +79,22 @@ if ($parseErrors.Count -gt 0) {
 }
 
 $savedRouterPort = $env:CODEX_ROUTER_SWITCH_ROUTER_PORT
+$serviceProcessPath = Join-Path (
+  Join-Path $env:USERPROFILE ".codex\codex-router"
+) "service-process.json"
+$expectedDetectedPort = 4202
+if (Test-Path -LiteralPath $serviceProcessPath -PathType Leaf) {
+  try {
+    $serviceProcess = Get-Content -LiteralPath $serviceProcessPath -Raw | ConvertFrom-Json
+    $candidate = [int]$serviceProcess.ports.router
+    if ($candidate -ge 1 -and $candidate -le 65535) {
+      $expectedDetectedPort = $candidate
+    }
+  } catch {
+  }
+}
 try {
-  $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "4102"
+  Remove-Item Env:CODEX_ROUTER_SWITCH_ROUTER_PORT -ErrorAction SilentlyContinue
   $selfTestRaw = & powershell.exe `
     -NoLogo `
     -NoProfile `
@@ -94,9 +108,9 @@ try {
   if (
     -not $selfTest.Ok -or
     $selfTest.MutationsPerformed -or
-    [int]$selfTest.RouterPort -ne 4102
+    [int]$selfTest.RouterPort -ne $expectedDetectedPort
   ) {
-    throw "SelfTest returned an unexpected default port result."
+    throw "SelfTest returned an unexpected detected port result."
   }
 
   $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "4177"
@@ -162,7 +176,7 @@ if (
   -not $committedGuiTest.pureChineseUi -or
   -not $committedGuiTest.layoutSafe -or
   $committedGuiTest.uiLanguage -ne "zh-CN" -or
-  $committedGuiTest.version -ne "1.2.4" -or
+  $committedGuiTest.version -ne "1.2.5" -or
   -not $committedGuiTest.refreshMutationGuard -or
   -not $committedGuiTest.readOnlyArgsRestricted -or
   $committedGuiTest.windowDisplayed -or
@@ -195,7 +209,7 @@ if (
 $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName(
   $build.Output
 ).Version.ToString()
-if ($assemblyVersion -ne "1.2.4.0") {
+if ($assemblyVersion -ne "1.2.5.0") {
   throw "Unexpected EXE assembly version: $assemblyVersion"
 }
 
@@ -253,7 +267,7 @@ if (
   -not $exeGuiTest.pureChineseUi -or
   -not $exeGuiTest.layoutSafe -or
   $exeGuiTest.uiLanguage -ne "zh-CN" -or
-  $exeGuiTest.version -ne "1.2.4" -or
+  $exeGuiTest.version -ne "1.2.5" -or
   -not $exeGuiTest.refreshMutationGuard -or
   -not $exeGuiTest.readOnlyArgsRestricted -or
   $exeGuiTest.windowDisplayed -or
