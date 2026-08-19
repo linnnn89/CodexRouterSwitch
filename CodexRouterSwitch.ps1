@@ -21,6 +21,7 @@ $RouterStateRoot = Join-Path $CodexHome "codex-router"
 $RouterStartScript = Join-Path $RouterStateRoot "start-codex-router.cmd"
 $VisibleLauncher = Join-Path $PSScriptRoot "Run-Visible-Codex-Router.cmd"
 $ConsoleStatePath = Join-Path $RouterStateRoot "router-switch-console.json"
+$ServiceProcessPath = Join-Path $RouterStateRoot "service-process.json"
 $ConfigManagerScript = Join-Path $RouterRoot "src\config-manager.mjs"
 $CatalogScript = Join-Path $RouterRoot "src\catalog.mjs"
 $ServiceScript = Join-Path $RouterRoot "src\service.mjs"
@@ -186,13 +187,51 @@ function Get-ConfigStatus {
   return ($result.StdOut | ConvertFrom-Json)
 }
 
+function Get-RouterPort {
+  if (Test-Path -LiteralPath $ServiceProcessPath -PathType Leaf) {
+    try {
+      $payload = Get-Content -LiteralPath $ServiceProcessPath -Raw | ConvertFrom-Json
+      $port = [int]$payload.ports.router
+      if ($port -ge 1 -and $port -le 65535) {
+        return $port
+      }
+    } catch {
+    }
+  }
+
+  if (Test-Path -LiteralPath $RouterStartScript -PathType Leaf) {
+    foreach ($rawLine in Get-Content -LiteralPath $RouterStartScript) {
+      $line = [string]$rawLine
+      if ($line -match '(?i)set\s+"?(?:MODEL_ROUTER_PORT|CODEX_ROUTER_PORT)=([0-9]{1,5})"?') {
+        $port = [int]$Matches[1]
+        if ($port -ge 1 -and $port -le 65535) {
+          return $port
+        }
+      }
+    }
+  }
+
+  foreach ($name in @("MODEL_ROUTER_PORT", "CODEX_ROUTER_PORT", "KIMI_ROUTER_PORT")) {
+    $raw = [Environment]::GetEnvironmentVariable($name)
+    if ([int]::TryParse($raw, [ref]([int]0))) {
+      $port = [int]$raw
+      if ($port -ge 1 -and $port -le 65535) {
+        return $port
+      }
+    }
+  }
+
+  return 4202
+}
+
 function Test-RouterHealth {
   param([int]$TimeoutMilliseconds = 1500)
 
   $request = $null
   $response = $null
   try {
-    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:4102/health")
+    $port = Get-RouterPort
+    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$port/health")
     $request.Method = "GET"
     $request.Timeout = $TimeoutMilliseconds
     $request.ReadWriteTimeout = $TimeoutMilliseconds
@@ -365,7 +404,7 @@ function Enable-RouterVisible {
       -TimeoutMilliseconds 30000)
 
     if (-not (Wait-RouterHealth -Expected $false -TimeoutSeconds 20)) {
-      throw "A router process that was not started by this switch still owns port 4102."
+      throw "A router process that was not started by this switch still owns port $(Get-RouterPort)."
     }
 
     [void](Invoke-RouterNode `
@@ -437,7 +476,7 @@ function Disable-RouterKeepSettings {
 
   if (-not (Wait-RouterHealth -Expected $false -TimeoutSeconds 20)) {
     $warnings.Add(
-      "Native Codex was restored, but an untracked process still responds on port 4102."
+      "Native Codex was restored, but an untracked process still responds on port $(Get-RouterPort)."
     )
   }
 

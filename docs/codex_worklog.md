@@ -154,3 +154,22 @@
   - 最终 EXE 为 208,896 bytes，SHA-256
     `12A039340222ECCBB15FCD530A3B088927DD463CEAF7A760F3EA538D64966777`。
 - 发布状态：作为 v1.2.3 独立 PR 提交至 `main`。
+
+## 2026-08-19 v1.2.4 动态 Router 端口探测
+
+- 目标：修复 Codex Router 更新到 `0.4.0-beta.4` 后，切换器仍探测旧端口 `4102`
+  并把正在运行的 Router 误判为 `Degraded` 的问题。
+- 变更：
+  - 健康检查按 `service-process.json`、`start-codex-router.cmd`、环境变量的顺序
+    解析当前 Router 端口，缺省回退到新版默认端口 `4202`；
+  - 界面状态、异常文案和 PowerShell 兼容入口同步使用解析到的端口；
+  - 程序与自检版本更新为 `1.2.4` / `1.2.4.0`。
+- 验证：
+  - 真实本机只读状态从 `Degraded` 恢复为 `On` / `healthy=true`，未执行真实 ON/OFF；
+  - 完整回归通过：语法、分发 EXE、源码重编译、GUI、中文 UI、布局、控制器自检和
+    隔离 enable/disable 均为 `pass`；
+  - 真实 Codex 配置未修改；
+  - 最终 EXE 为 211,456 bytes，程序集版本 `1.2.4.0`，SHA-256
+    `9BFBB4BF532E1BE64ABC3316EE6FA3883114D41EE0B3DA752DC329C90453A36B`；
+  - 已复制到桌面 `C:\\Users\\6\\Desktop\\CodexRouterSwitch.exe`。
+- 发布状态：按用户授权同步到 GitHub。

@@ -17,8 +17,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Safe ON/OFF switch for a local Codex Router installation")]
 [assembly: System.Reflection.AssemblyCompany("CodexRouterSwitch")]
 [assembly: System.Reflection.AssemblyProduct("Codex Router Switch")]
-[assembly: System.Reflection.AssemblyVersion("1.2.3.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.3.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.4.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.4.0")]
 
 namespace CodexRouterSwitch
 {
@@ -30,6 +30,7 @@ namespace CodexRouterSwitch
         public readonly string RouterStartScript;
         public readonly string VisibleWrapper;
         public readonly string ConsoleStatePath;
+        public readonly string ServiceProcessPath;
         public readonly string ConfigManagerScript;
         public readonly string CatalogScript;
         public readonly string ServiceScript;
@@ -57,6 +58,7 @@ namespace CodexRouterSwitch
             RouterStartScript = Path.Combine(RouterStateRoot, "start-codex-router.cmd");
             VisibleWrapper = Path.Combine(RouterStateRoot, "router-switch-visible.cmd");
             ConsoleStatePath = Path.Combine(RouterStateRoot, "router-switch-console.json");
+            ServiceProcessPath = Path.Combine(RouterStateRoot, "service-process.json");
             ConfigManagerScript = Path.Combine(RouterRoot, "src", "config-manager.mjs");
             CatalogScript = Path.Combine(RouterRoot, "src", "catalog.mjs");
             ServiceScript = Path.Combine(RouterRoot, "src", "service.mjs");
@@ -106,6 +108,7 @@ namespace CodexRouterSwitch
         public bool Healthy;
         public string Model;
         public string ModelProvider;
+        public int RouterPort;
         public string Message;
     }
 
@@ -177,7 +180,8 @@ namespace CodexRouterSwitch
         public SwitchStatus GetStatus()
         {
             ConfigStatus config = GetConfigStatus();
-            bool healthy = TestRouterHealth(1500);
+            int routerPort = ResolveRouterPort();
+            bool healthy = TestRouterHealth(routerPort, 1500);
             bool configOn = String.Equals(
                 config.Mode,
                 "router",
@@ -189,6 +193,7 @@ namespace CodexRouterSwitch
             status.Healthy = healthy;
             status.Model = config.Model;
             status.ModelProvider = config.ModelProvider;
+            status.RouterPort = routerPort;
 
             if (configOn && healthy)
             {
@@ -245,7 +250,8 @@ namespace CodexRouterSwitch
 
             ConfigStatus initialConfig = GetConfigStatus();
             ServiceStatus initialService = GetServiceStatus();
-            bool initialHealthy = TestRouterHealth(1500);
+            int initialPort = ResolveRouterPort();
+            bool initialHealthy = TestRouterHealth(initialPort, 1500);
             bool runtimeChanged = false;
             bool configChangeAttempted = false;
             bool trackedConsoleWasRunning = false;
@@ -272,7 +278,9 @@ namespace CodexRouterSwitch
                 if (!WaitForRouterHealth(false, 20))
                 {
                     throw new InvalidOperationException(
-                        "A Router process not owned by this switch still responds on port 4102."
+                        "A Router process not owned by this switch still responds on port " +
+                        ResolveRouterPort().ToString(CultureInfo.InvariantCulture) +
+                        "."
                     );
                 }
 
@@ -411,7 +419,9 @@ namespace CodexRouterSwitch
             if (!WaitForRouterHealth(false, 20))
             {
                 result.Warnings.Add(
-                    "Native Codex was restored, but an untracked process still responds on port 4102."
+                    "Native Codex was restored, but an untracked process still responds on port " +
+                    ResolveRouterPort().ToString(CultureInfo.InvariantCulture) +
+                    "."
                 );
             }
 
@@ -773,14 +783,206 @@ namespace CodexRouterSwitch
             return record;
         }
 
+        private int ResolveRouterPort()
+        {
+            int port;
+            if (TryReadPortFromServiceProcess(out port))
+            {
+                return port;
+            }
+            if (TryReadPortFromStartScript(out port))
+            {
+                return port;
+            }
+            if (TryReadPortFromEnvironment(out port))
+            {
+                return port;
+            }
+            return 4202;
+        }
+
+        private bool TryReadPortFromServiceProcess(out int port)
+        {
+            port = 0;
+            if (!File.Exists(paths.ServiceProcessPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                string contents = File.ReadAllText(paths.ServiceProcessPath, Encoding.UTF8);
+                Dictionary<string, object> values = DeserializeObject(contents);
+                object portsObject;
+                if (!values.TryGetValue("ports", out portsObject))
+                {
+                    return false;
+                }
+
+                Dictionary<string, object> ports = portsObject as Dictionary<string, object>;
+                if (ports == null)
+                {
+                    return false;
+                }
+
+                return TryReadPortValue(ports, "router", out port);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool TryReadPortFromStartScript(out int port)
+        {
+            port = 0;
+            if (!File.Exists(paths.RouterStartScript))
+            {
+                return false;
+            }
+
+            try
+            {
+                foreach (string rawLine in File.ReadAllLines(paths.RouterStartScript))
+                {
+                    string line = rawLine.Trim();
+                    if (TryReadBatchPortAssignment(line, "MODEL_ROUTER_PORT", out port) ||
+                        TryReadBatchPortAssignment(line, "CODEX_ROUTER_PORT", out port))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private static bool TryReadBatchPortAssignment(
+            string line,
+            string variableName,
+            out int port
+        )
+        {
+            port = 0;
+            if (String.IsNullOrEmpty(line))
+            {
+                return false;
+            }
+
+            string prefix = "set \"" + variableName + "=";
+            if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                line.EndsWith("\"", StringComparison.Ordinal) &&
+                line.Length > prefix.Length + 1)
+            {
+                string raw = line.Substring(
+                    prefix.Length,
+                    line.Length - prefix.Length - 1
+                );
+                return TryParseTcpPort(raw, out port);
+            }
+
+            string unquoted = "set " + variableName + "=";
+            if (line.StartsWith(unquoted, StringComparison.OrdinalIgnoreCase) &&
+                line.Length > unquoted.Length)
+            {
+                return TryParseTcpPort(line.Substring(unquoted.Length), out port);
+            }
+
+            return false;
+        }
+
+        private static bool TryReadPortFromEnvironment(out int port)
+        {
+            string[] names = new string[]
+            {
+                "MODEL_ROUTER_PORT",
+                "CODEX_ROUTER_PORT",
+                "KIMI_ROUTER_PORT"
+            };
+            foreach (string name in names)
+            {
+                if (TryParseTcpPort(Environment.GetEnvironmentVariable(name), out port))
+                {
+                    return true;
+                }
+            }
+
+            port = 0;
+            return false;
+        }
+
+        private static bool TryReadPortValue(
+            Dictionary<string, object> values,
+            string key,
+            out int port
+        )
+        {
+            port = 0;
+            object value;
+            if (!values.TryGetValue(key, out value) || value == null)
+            {
+                return false;
+            }
+            return TryParseTcpPort(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                out port
+            );
+        }
+
+        private static bool TryParseTcpPort(string raw, out int port)
+        {
+            port = 0;
+            if (String.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            int parsed;
+            if (!Int32.TryParse(
+                    raw.Trim().Trim('"'),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out parsed
+                ) ||
+                parsed < 1 ||
+                parsed > 65535)
+            {
+                return false;
+            }
+
+            port = parsed;
+            return true;
+        }
+
+        public string FormatRouterEndpoint()
+        {
+            return "127.0.0.1:" + ResolveRouterPort().ToString(CultureInfo.InvariantCulture);
+        }
+
+        public int CurrentRouterPort()
+        {
+            return ResolveRouterPort();
+        }
+
         private bool TestRouterHealth(int timeoutMilliseconds)
+        {
+            return TestRouterHealth(ResolveRouterPort(), timeoutMilliseconds);
+        }
+
+        private bool TestRouterHealth(int routerPort, int timeoutMilliseconds)
         {
             HttpWebRequest request = null;
             HttpWebResponse response = null;
             try
             {
                 request = (HttpWebRequest)WebRequest.Create(
-                    "http://127.0.0.1:4102/health"
+                    "http://127.0.0.1:" +
+                    routerPort.ToString(CultureInfo.InvariantCulture) +
+                    "/health"
                 );
                 request.Method = "GET";
                 request.Timeout = timeoutMilliseconds;

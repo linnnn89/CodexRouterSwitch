@@ -133,7 +133,7 @@ if (
   -not $committedGuiTest.pureChineseUi -or
   -not $committedGuiTest.layoutSafe -or
   $committedGuiTest.uiLanguage -ne "zh-CN" -or
-  $committedGuiTest.version -ne "1.2.3" -or
+  $committedGuiTest.version -ne "1.2.4" -or
   -not $committedGuiTest.refreshMutationGuard -or
   -not $committedGuiTest.readOnlyArgsRestricted -or
   $committedGuiTest.windowDisplayed -or
@@ -166,7 +166,7 @@ if (
 $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName(
   $build.Output
 ).Version.ToString()
-if ($assemblyVersion -ne "1.2.3.0") {
+if ($assemblyVersion -ne "1.2.4.0") {
   throw "Unexpected EXE assembly version: $assemblyVersion"
 }
 
@@ -199,7 +199,7 @@ if (
   -not $exeGuiTest.pureChineseUi -or
   -not $exeGuiTest.layoutSafe -or
   $exeGuiTest.uiLanguage -ne "zh-CN" -or
-  $exeGuiTest.version -ne "1.2.3" -or
+  $exeGuiTest.version -ne "1.2.4" -or
   -not $exeGuiTest.refreshMutationGuard -or
   -not $exeGuiTest.readOnlyArgsRestricted -or
   $exeGuiTest.windowDisplayed -or

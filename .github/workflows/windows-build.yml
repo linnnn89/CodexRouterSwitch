@@ -31,7 +31,7 @@ jobs:
             -not $result.pureChineseUi -or
             -not $result.layoutSafe -or
             $result.uiLanguage -ne "zh-CN" -or
-            $result.version -ne "1.2.0" -or
+            $result.version -ne "1.2.4" -or
             -not $result.refreshMutationGuard -or
             -not $result.readOnlyArgsRestricted -or
             $result.windowDisplayed -or
@@ -54,7 +54,7 @@ jobs:
           $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName(
             $result.Output
           ).Version.ToString()
-          if ($assemblyVersion -ne "1.2.0.0") {
+          if ($assemblyVersion -ne "1.2.4.0") {
             throw "Unexpected EXE assembly version: $assemblyVersion"
           }
           if (-not (Test-Path -LiteralPath $result.Output -PathType Leaf)) {
@@ -86,7 +86,7 @@ jobs:
             -not $result.pureChineseUi -or
             -not $result.layoutSafe -or
             $result.uiLanguage -ne "zh-CN" -or
-            $result.version -ne "1.2.0" -or
+            $result.version -ne "1.2.4" -or
             -not $result.refreshMutationGuard -or
             -not $result.readOnlyArgsRestricted -or
             $result.windowDisplayed -or

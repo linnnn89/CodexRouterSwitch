@@ -987,11 +987,12 @@ namespace CodexRouterSwitch
             );
             openLogButton.Enabled = File.Exists(controller.Paths.RouterLog);
 
+            string endpoint = FormatEndpoint(status.RouterPort);
             if (status.State == "On")
             {
                 ShowHealthy(
                     "本地路由运行正常",
-                    "127.0.0.1:4102"
+                    endpoint
                 );
             }
             else if (status.State == "Degraded")
@@ -1000,7 +1001,7 @@ namespace CodexRouterSwitch
                     "本地路由当前不可用",
                     "Codex 已配置为使用本地路由，但路由进程当前不可用。"
                 );
-                statusDetail.Text = "127.0.0.1:4102";
+                statusDetail.Text = endpoint;
                 ConfigureActions(
                     "重试路由",
                     delegate { RetryRouterAction(); },
@@ -1012,9 +1013,11 @@ namespace CodexRouterSwitch
             {
                 ShowWarning(
                     "检测到未跟踪的路由进程",
-                    "原生 Codex 当前有效。本程序不会终止端口 4102 上的未知进程。"
+                    "原生 Codex 当前有效。本程序不会终止端口 " +
+                    status.RouterPort.ToString(CultureInfo.InvariantCulture) +
+                    " 上的未知进程。"
                 );
-                statusDetail.Text = "127.0.0.1:4102";
+                statusDetail.Text = endpoint;
                 ConfigureActions(
                     "重新检查",
                     delegate { RefreshStatusAction(); },
@@ -1426,6 +1429,12 @@ namespace CodexRouterSwitch
             return FriendlyValue(state, "不可用");
         }
 
+        private static string FormatEndpoint(int port)
+        {
+            int safePort = port > 0 ? port : 4202;
+            return "127.0.0.1:" + safePort.ToString(CultureInfo.InvariantCulture);
+        }
+
         internal static string LocalizeControllerMessage(string message)
         {
             if (String.IsNullOrWhiteSpace(message))
@@ -1434,12 +1443,21 @@ namespace CodexRouterSwitch
             }
 
             string localized = message.Trim();
+            localized = ReplacePortSentence(
+                localized,
+                "A Router process not owned by this switch still responds on port {0}.",
+                "端口 {0} 上仍有不受本程序管理的路由进程响应。"
+            );
+            localized = ReplacePortSentence(
+                localized,
+                "Native Codex was restored, but an untracked process still responds on port {0}.",
+                "已恢复原生 Codex，但端口 {0} 上仍有未纳入管理的进程响应。"
+            );
             string[,] replacements = new string[,]
             {
                 { "Node.js was not found. Codex Router cannot be controlled.", "未找到 Node.js，当前无法控制 Codex 路由。" },
                 { "Node.js did not report a version.", "Node.js 未返回版本信息。" },
                 { "Required Codex Router file is missing:", "缺少必需的 Codex Router 文件：" },
-                { "A Router process not owned by this switch still responds on port 4102.", "端口 4102 上仍有不受本程序管理的路由进程响应。" },
                 { "Router did not become healthy within 300 seconds. Check ", "路由在 300 秒内未恢复健康。请检查日志：" },
                 { "The previous visible Router runtime did not recover.", "先前的可见路由进程未能恢复。" },
                 { "Codex Router returned an invalid configuration status.", "Codex Router 返回了无效的配置状态。" },
@@ -1456,7 +1474,6 @@ namespace CodexRouterSwitch
                 { "Expected a JSON object.", "预期返回 JSON 对象，但实际结果无效。" },
                 { "Router is ON in a visible console. Restart Codex manually.", "本地路由已在可见控制台中启动。请手动重启 Codex。" },
                 { "Router is OFF. Native Codex is active and Router settings are preserved.", "本地路由已关闭。原生 Codex 已启用，路由设置已保留。" },
-                { "Native Codex was restored, but an untracked process still responds on port 4102.", "已恢复原生 Codex，但端口 4102 上仍有未纳入管理的进程响应。" },
                 { "Could not stop the failed visible process:", "无法停止启动失败的可见进程：" },
                 { "Could not restore native Codex configuration:", "无法恢复原生 Codex 配置：" },
                 { "Could not restore the previous Router runtime:", "无法恢复先前的路由运行状态：" },
@@ -1476,6 +1493,54 @@ namespace CodexRouterSwitch
                 );
             }
             return localized;
+        }
+
+        private static string ReplacePortSentence(
+            string message,
+            string englishTemplate,
+            string chineseTemplate
+        )
+        {
+            int tokenIndex = englishTemplate.IndexOf("{0}", StringComparison.Ordinal);
+            if (tokenIndex < 0)
+            {
+                return message;
+            }
+
+            string prefix = englishTemplate.Substring(0, tokenIndex);
+            string suffix = englishTemplate.Substring(tokenIndex + 3);
+            int start = 0;
+            while (true)
+            {
+                int prefixAt = message.IndexOf(prefix, start, StringComparison.Ordinal);
+                if (prefixAt < 0)
+                {
+                    return message;
+                }
+
+                int portStart = prefixAt + prefix.Length;
+                int portEnd = portStart;
+                while (portEnd < message.Length && Char.IsDigit(message[portEnd]))
+                {
+                    portEnd++;
+                }
+
+                if (portEnd > portStart &&
+                    message.IndexOf(suffix, portEnd, StringComparison.Ordinal) == portEnd)
+                {
+                    string port = message.Substring(portStart, portEnd - portStart);
+                    string replacement = String.Format(
+                        CultureInfo.InvariantCulture,
+                        chineseTemplate,
+                        port
+                    );
+                    return message.Substring(0, prefixAt) +
+                        replacement +
+                        message.Substring(portEnd + suffix.Length);
+                }
+
+                start = prefixAt + prefix.Length;
+            }
         }
 
         private static string RedactUserPath(string path)
@@ -1676,7 +1741,7 @@ namespace CodexRouterSwitch
             string localizedWarning = LocalizeControllerMessage(
                 "Router is OFF. Native Codex is active and Router settings are preserved." +
                 " Warning: Native Codex was restored, but an untracked process still " +
-                "responds on port 4102."
+                "responds on port 4202."
             );
             return Text == "Codex 路由切换" &&
                 nativeMode.Text == "原生 Codex" &&
@@ -1912,7 +1977,7 @@ namespace CodexRouterSwitch
                         values["pureChineseUi"] = form.RunChineseUiSelfTest();
                         values["layoutSafe"] = form.RunLayoutSelfTest();
                         values["uiLanguage"] = "zh-CN";
-                        values["version"] = "1.2.3";
+                        values["version"] = "1.2.4";
                         values["refreshMutationGuard"] =
                             form.RunInteractionGuardSelfTest();
                         values["readOnlyArgsRestricted"] =
