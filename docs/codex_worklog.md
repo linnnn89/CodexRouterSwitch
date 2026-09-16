@@ -189,3 +189,47 @@
     `08BFA1B8685E7C81F6645022ADD45912EF0EFAFA2A22E18AFE135C699CDDD78E`；
   - 已复制到桌面 `C:\Users\6\Desktop\CodexRouterSwitch.exe`。
 - 发布状态：按用户授权同步到 GitHub。
+
+## 2026-09-16 v1.3.0 模型管理（可见性白名单 UI）
+
+- 目标：在切换器内新增“模型管理”窗口，以三层折叠（供应商 → 模型公司 → 模型）
+  ✓ 勾选界面批量设置模型在 Codex 模型列表中的显示/隐藏，并支持联网检查、一键加入
+  新模型；不修改 Codex Router 安装目录，不读取或保存任何供应商密钥。
+- 背景：Codex Router 0.6.0 的模型选择器为白名单（allowlist）模式，新加入的供应商
+  （如 Command Code）模型默认全部隐藏，Codex 模型列表不显示；此前只能通过命令行恢复。
+- 实现：
+  - 新增 `tools/model-panel.mjs` 桥脚本（`list` / `apply` / `discover` / `add`），
+    复用 Codex Router 官方模块与状态文件（`withModelOverlayLock`、`setModelsVisible`、
+    目录发布管线、registry），在项目内独立运行；`Build-Exe.ps1` 将脚本作为嵌入资源
+    打包，首次使用时按内容散列释放到 `%LOCALAPPDATA%\CodexRouterSwitch\bridge\`，
+    桌面单文件拷贝的 EXE 也能使用。
+  - 新增 `src/ModelPanelService.cs`（调用桥并解析 JSON）、`src/ModelPanelForm.cs`
+    （三层折叠勾选窗口）、`src/ModelDiscoverForm.cs`（联网发现窗口）；
+    `src/CodexRouterSwitch.cs` 的 `AppPaths` 增加桥脚本解析，`RouterController`
+    增加模型面板进程调用（失败时返回桥的 JSON 错误而非抛异常）。
+  - 勾选为三态联动：组行一键全选/全不选，部分选中显示半选态；改动先本地暂存，
+    点击「应用更改」后统一提交，并在单次锁操作内重新发布模型目录；无改动时按钮禁用。
+  - 每次 `apply` / `add` 前自动把 `model-picker.json`（加入操作还包括
+    `user-models.json`）按时间戳备份到 `%LOCALAPPDATA%\CodexRouterSwitch\backups\`。
+  - 联网发现复用 Codex Router registry 中定义的官方端点；因本机代理 DNS 为 fake-ip
+    模式（域名解析到 198.18.0.0/15 保留段），官方 `discover-models` / `curate-models`
+    的 SSRF 防护会拒绝连接，桥脚本改为对同一官方端点自行拉取，并复刻官方
+    `curatedSizing` 换算与协议安全门校验；未验证线路协议的模型保持 fail-closed。
+  - 程序、清单和自检版本更新为 `1.3.0` / `1.3.0.0`。
+- 验证：
+  - 桥脚本四个命令全部在真实环境实测：`list` 三层输出、`apply` 隐藏/恢复（含备份
+    目录）、`discover` 联网拉取、`add` 加入后全链路验证（`user-models` /
+    `model-picker` / `merged-models` / `litellm.yaml` 网关路由），随后用官方
+    `curate --remove` 完整恢复测试环境。
+  - `Build-Exe.ps1` 编译零警告；GUI 无窗口自检新增 `modelPanelBridge` 与
+    `modelPanelForm`（真实调用 Node/桥/JSON 解析与窗口加载渲染）均为 `true`，
+    原有 `modernUi` / `pureChineseUi` / `layoutSafe` / `refreshMutationGuard` 保持
+    通过；控制器只读自检通过。
+  - 使用 WinCode MCP 0.15.0 对运行中的 EXE 做 UI 取证：主窗口与模型管理窗口控件树
+    完整、三层树渲染正确（三态勾选与实际可见性一致）、“应用更改”在无改动时正确
+    禁用；树行补充了无障碍名称。
+  - 用户手动操作验证三次应用（备份时间戳 19:35:51 / 19:37:08 / 19:37:31 可追溯，
+    保存功能真实生效）；真实 Codex 配置的修改全部有自动备份可回滚。
+  - 最终 EXE 为 278,016 bytes，程序集版本 `1.3.0.0`，SHA-256
+    `D021C4AB95A55C35C0ADF9785329ECD0E5EBF714C6458F03BE55F46EAE3B5D45`。
+- 发布状态：仅完成本地实现、构建与验证，尚未提交或推送。

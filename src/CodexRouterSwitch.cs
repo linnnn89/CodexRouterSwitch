@@ -17,8 +17,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyDescription("Safe ON/OFF switch for a local Codex Router installation")]
 [assembly: System.Reflection.AssemblyCompany("CodexRouterSwitch")]
 [assembly: System.Reflection.AssemblyProduct("Codex Router Switch")]
-[assembly: System.Reflection.AssemblyVersion("1.2.5.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.5.0")]
+[assembly: System.Reflection.AssemblyVersion("1.3.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.3.0.0")]
 
 namespace CodexRouterSwitch
 {
@@ -36,6 +36,7 @@ namespace CodexRouterSwitch
         public readonly string ServiceScript;
         public readonly string WindowsServiceScript;
         public readonly string RouterLog;
+        public readonly string ModelPanelScript;
         public readonly int RouterPort;
 
         public AppPaths()
@@ -69,7 +70,87 @@ namespace CodexRouterSwitch
                 "service-windows.mjs"
             );
             RouterLog = Path.Combine(RouterStateRoot, "router.log");
+            ModelPanelScript = ResolveModelPanelScript(localAppData);
             RouterPort = ResolveRouterPort();
+        }
+
+        // 模型管理桥脚本：优先使用随 EXE 嵌入的资源（按内容摘要释放到用户缓存，
+        // 使桌面单独拷贝的 EXE 无需 tools 目录即可工作），开发树中回退到
+        // tools/model-panel.mjs。
+        private static string ResolveModelPanelScript(string localAppData)
+        {
+            try
+            {
+                System.Reflection.Assembly assembly =
+                    System.Reflection.Assembly.GetExecutingAssembly();
+                using (Stream stream = assembly.GetManifestResourceStream(
+                    "CodexRouterSwitch.model-panel.mjs"
+                ))
+                {
+                    if (stream != null)
+                    {
+                        byte[] content = new byte[stream.Length];
+                        int offset = 0;
+                        while (offset < content.Length)
+                        {
+                            int read = stream.Read(
+                                content,
+                                offset,
+                                content.Length - offset
+                            );
+                            if (read <= 0)
+                            {
+                                break;
+                            }
+                            offset += read;
+                        }
+
+                        string digest;
+                        using (System.Security.Cryptography.SHA256 sha =
+                            System.Security.Cryptography.SHA256.Create())
+                        {
+                            string hash = BitConverter.ToString(
+                                sha.ComputeHash(content)
+                            ).Replace("-", "");
+                            digest = hash.Substring(0, 16);
+                        }
+
+                        string directory = Path.Combine(
+                            localAppData,
+                            "CodexRouterSwitch",
+                            "bridge",
+                            digest
+                        );
+                        string target = Path.Combine(directory, "model-panel.mjs");
+                        if (!File.Exists(target))
+                        {
+                            Directory.CreateDirectory(directory);
+                            File.WriteAllBytes(target, content);
+                        }
+                        return target;
+                    }
+                }
+            }
+            catch
+            {
+                // 释放失败时回退到开发树中的脚本。
+            }
+
+            string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            string[] candidates = new string[]
+            {
+                Path.Combine(baseDirectory, "tools", "model-panel.mjs"),
+                Path.Combine(baseDirectory, "..", "tools", "model-panel.mjs"),
+            };
+            foreach (string candidate in candidates)
+            {
+                string full = Path.GetFullPath(candidate);
+                if (File.Exists(full))
+                {
+                    return full;
+                }
+            }
+            return null;
         }
 
         private static string ReadOverride(string name, string fallback)
@@ -1047,7 +1128,8 @@ namespace CodexRouterSwitch
         private ProcessResult RunExternal(
             string filePath,
             string[] arguments,
-            int timeoutMilliseconds
+            int timeoutMilliseconds,
+            bool throwOnFailure = true
         )
         {
             ProcessStartInfo startInfo = new ProcessStartInfo();
@@ -1089,7 +1171,7 @@ namespace CodexRouterSwitch
                 string stdout = stdoutTask.Result;
                 string stderr = stderrTask.Result;
                 int exitCode = process.ExitCode;
-                if (exitCode != 0)
+                if (exitCode != 0 && throwOnFailure)
                 {
                     string detail = !String.IsNullOrWhiteSpace(stderr)
                         ? stderr.Trim()
@@ -1108,6 +1190,79 @@ namespace CodexRouterSwitch
                 result.StandardOutput = stdout;
                 result.StandardError = stderr;
                 return result;
+            }
+        }
+
+        // 模型管理桥（tools/model-panel.mjs）：桥始终以单行 JSON 汇报，失败时
+        // 也在 stdout 返回 {"ok":false,...}，因此这里不做 exit code 抛错，
+        // 由调用方解析 JSON 决定如何呈现中文错误。
+        public string RunModelPanelCommand(string[] arguments, int timeoutMilliseconds)
+        {
+            if (String.IsNullOrWhiteSpace(paths.ModelPanelScript) ||
+                !File.Exists(paths.ModelPanelScript))
+            {
+                throw new InvalidOperationException(
+                    "模型管理组件不可用：未找到 model-panel.mjs。"
+                );
+            }
+
+            List<string> allArguments = new List<string>();
+            allArguments.Add(paths.ModelPanelScript);
+            if (arguments != null)
+            {
+                allArguments.AddRange(arguments);
+            }
+
+            ProcessResult result = RunExternal(
+                nodePath,
+                allArguments.ToArray(),
+                timeoutMilliseconds,
+                false
+            );
+            string stdout = (result.StandardOutput ?? "").Trim();
+            string stderr = (result.StandardError ?? "").Trim();
+            if (result.ExitCode != 0 && stdout.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    "Command failed: " +
+                    (stderr.Length > 0
+                        ? stderr
+                        : "exit code " + result.ExitCode.ToString(CultureInfo.InvariantCulture))
+                );
+            }
+            return stdout;
+        }
+
+        public string RunModelPanelWithPayload(
+            string command,
+            string payloadJson,
+            int timeoutMilliseconds
+        )
+        {
+            string temporary = Path.Combine(
+                Path.GetTempPath(),
+                "codex-router-switch-model-panel-" +
+                Guid.NewGuid().ToString("N") +
+                ".json"
+            );
+            try
+            {
+                File.WriteAllText(temporary, payloadJson, new UTF8Encoding(false));
+                return RunModelPanelCommand(
+                    new string[] { command, "--input", temporary },
+                    timeoutMilliseconds
+                );
+            }
+            finally
+            {
+                try
+                {
+                    File.Delete(temporary);
+                }
+                catch
+                {
+                    // 临时文件清理失败不影响操作结果。
+                }
             }
         }
 

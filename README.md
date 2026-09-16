@@ -31,7 +31,27 @@ v1.2 使用纯中文的现代 Windows 界面，采用自绘圆角按钮、模式
 - 降级和未跟踪进程状态的针对性恢复操作；
 - Router 日志入口和不含凭据的诊断报告；
 - 切换完成后的 Codex 重启提示；
-- 窗口处于活动状态时每 5 秒自动刷新状态。
+- 窗口处于活动状态时每 5 秒自动刷新状态；
+- 底栏「模型管理」按钮打开三层折叠勾选窗口，批量设置模型在 Codex 模型列表中的
+  显示与隐藏，并支持联网检查、一键加入新模型（见下节）。
+
+## 模型管理
+
+底栏的「模型管理」按钮打开独立窗口，用于设置哪些模型出现在 Codex 的模型列表中：
+
+- 三层折叠结构：供应商 → 模型公司 → 模型；组行勾选框可一键全选/全不选所有子项，
+  部分选中时显示半选态（✓ / ■ / 空）；
+- 勾选状态先在窗口内暂存，点击「应用更改」后统一提交，并在单次锁操作内重新
+  发布模型目录；没有改动时按钮保持禁用；
+- 每次应用前自动把 `model-picker.json`（加入操作时还包括 `user-models.json`）
+  按时间戳备份到 `%LOCALAPPDATA%\CodexRouterSwitch\backups\`；
+- 「检查新模型」联网读取各供应商的在线目录，列出可加入的新模型，勾选后一键写入
+  并发布；因上游线路协议尚未验证而暂不可加入的模型会单独说明；
+- Codex 自带的原生模型显示为“由 Codex 管理”，不参与勾选。
+
+该窗口需要本机 Node.js。桥脚本随 EXE 内置，首次使用时按内容散列释放到
+`%LOCALAPPDATA%\CodexRouterSwitch\bridge\`，不修改 Codex Router 安装目录一个字节，
+也不读取或保存任何供应商密钥。
 
 内部状态 `Degraded` 表示 Codex 已配置为使用 Router，但 Router 健康检查失败。
 内部状态 `Orphaned` 表示原生 Codex 已恢复，但配置的路由端口上仍检测到一个不受本程序管理的
@@ -103,9 +123,10 @@ $env:CODEX_ROUTER_SWITCH_ROUTER_PORT = "4106"
   OpenAI、OpenRouter、模型名和路径等品牌或技术值保留原文。
 
 EXE 没有商业代码签名证书，因此 Windows 属性中会显示“未签名”。它是在本机从
-`src\CodexRouterSwitch.cs`、`src\ModernUiControls.cs` 和
-`src\EnhancedMainForm.cs` 编译生成的；可使用
-`Build-Exe.ps1` 复现构建。
+`src\CodexRouterSwitch.cs`、`src\ModernUiControls.cs`、`src\ModelPanelService.cs`、
+`src\ModelPanelForm.cs`、`src\ModelDiscoverForm.cs` 和
+`src\EnhancedMainForm.cs` 编译生成的；`tools\model-panel.mjs` 作为嵌入资源一并打包，
+可使用 `Build-Exe.ps1` 复现构建。
 
 ## 重新编译
 
@@ -116,7 +137,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 构建脚本显式选择唯一的 `CodexRouterSwitch.EnhancedProgram` 入口，由该入口直接处理
 GUI、状态读取和只读自检；路由控制器与进程安全边界保持不变。生成文件的程序集版本为
-`1.2.5.0`。构建会把 `assets\icon\CodexRouterSwitch.ico` 中的
+`1.3.0.0`。构建会把 `assets\icon\CodexRouterSwitch.ico` 中的
 `16/20/24/32/40/48/64/128/256 px` 图标嵌入 EXE；入口会在当前程序进程内将可能重复的 `Path` / `PATH` 收敛为单一
 `PATH`，兼容由 Codex、IDE 或其他启动器继承的异常环境块；不会修改 Windows 用户或
 系统环境变量。

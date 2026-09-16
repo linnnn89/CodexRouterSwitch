@@ -7,8 +7,12 @@ $sourceRoot = Join-Path $PSScriptRoot "src"
 $sources = @(
   (Join-Path $sourceRoot "CodexRouterSwitch.cs"),
   (Join-Path $sourceRoot "ModernUiControls.cs"),
+  (Join-Path $sourceRoot "ModelPanelService.cs"),
+  (Join-Path $sourceRoot "ModelPanelForm.cs"),
+  (Join-Path $sourceRoot "ModelDiscoverForm.cs"),
   (Join-Path $sourceRoot "EnhancedMainForm.cs")
 )
+$bridge = Join-Path $PSScriptRoot "tools\model-panel.mjs"
 $manifest = Join-Path $sourceRoot "app.manifest"
 $icon = Join-Path $PSScriptRoot "assets\icon\CodexRouterSwitch.ico"
 $dist = Join-Path $PSScriptRoot "dist"
@@ -33,6 +37,9 @@ foreach ($source in $sources) {
 if (-not (Test-Path -LiteralPath $icon -PathType Leaf)) {
   throw "Application icon was not found: $icon"
 }
+if (-not (Test-Path -LiteralPath $bridge -PathType Leaf)) {
+  throw "Model panel bridge script was not found: $bridge"
+}
 
 New-Item -ItemType Directory -Path $dist -Force | Out-Null
 
@@ -56,6 +63,7 @@ $arguments = @(
   "/utf8output",
   "/win32manifest:$manifest",
   "/win32icon:$icon",
+  "/resource:$bridge,CodexRouterSwitch.model-panel.mjs",
   "/out:$output"
 )
 $arguments += $references | ForEach-Object { "/reference:$_" }

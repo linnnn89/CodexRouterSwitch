@@ -38,8 +38,10 @@ namespace CodexRouterSwitch
         private readonly ModernButton primaryAction;
         private readonly ModernButton secondaryAction;
         private readonly ModernButton refreshButton;
+        private readonly ModernButton modelManagerButton;
         private readonly ModernButton openLogButton;
         private readonly ModernButton copyDiagnosticsButton;
+        private ModelPanelForm modelPanelForm;
         private readonly BusyLine busyLine;
         private readonly RoundedPanel restartPanel;
         private readonly Label restartText;
@@ -594,6 +596,15 @@ namespace CodexRouterSwitch
             refreshButton.Size = new Size(138, 44);
             refreshButton.Click += RefreshClicked;
             footerActions.Controls.Add(refreshButton);
+
+            modelManagerButton = CreateActionButton(
+                "模型管理",
+                ModernButtonKind.Secondary,
+                "\uE8F1"
+            );
+            modelManagerButton.Size = new Size(138, 44);
+            modelManagerButton.Click += OpenModelPanelClicked;
+            footerActions.Controls.Add(modelManagerButton);
 
             copyDiagnosticsButton = CreateActionButton(
                 "复制诊断信息",
@@ -1321,6 +1332,23 @@ namespace CodexRouterSwitch
             }
         }
 
+        private void OpenModelPanelClicked(object sender, EventArgs e)
+        {
+            if (modelPanelForm != null && !modelPanelForm.IsDisposed)
+            {
+                if (modelPanelForm.WindowState == FormWindowState.Minimized)
+                {
+                    modelPanelForm.WindowState = FormWindowState.Normal;
+                }
+                modelPanelForm.Activate();
+                return;
+            }
+
+            modelPanelForm = new ModelPanelForm(controller);
+            modelPanelForm.FormClosed += delegate { modelPanelForm = null; };
+            modelPanelForm.Show(this);
+        }
+
         private void OpenLogClicked(object sender, EventArgs e)
         {
             string path = controller.Paths.RouterLog;
@@ -1696,6 +1724,7 @@ namespace CodexRouterSwitch
                 nativeMode.Text == "原生 Codex" &&
                 routerMode.Text == "本地路由" &&
                 refreshButton.Text == "刷新状态" &&
+                modelManagerButton.Text == "模型管理" &&
                 openLogButton.Text == "打开日志" &&
                 copyDiagnosticsButton.Text == "复制诊断信息" &&
                 restartText.Text.StartsWith(
@@ -1737,6 +1766,44 @@ namespace CodexRouterSwitch
                 restartRowStyle.Height = savedRestartHeight;
                 restartPanel.Visible = savedRestartVisible;
                 PerformLayout();
+            }
+        }
+
+        // 自检：模型管理服务链路（释放桥脚本 -> node 进程 -> JSON 解析）。
+        internal bool RunModelPanelBridgeSelfTest()
+        {
+            try
+            {
+                ModelPanelService service = new ModelPanelService(controller);
+                PanelSnapshot snapshot = service.Load();
+                return snapshot != null &&
+                    snapshot.Providers.Count > 0 &&
+                    snapshot.Total > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // 自检：模型管理窗口可构造、可加载并渲染三层树行。
+        internal bool RunModelPanelFormSelfTest()
+        {
+            try
+            {
+                using (ModelPanelForm panel = new ModelPanelForm(controller))
+                {
+                    panel.Show();
+                    Application.DoEvents();
+                    bool loaded = panel.WaitForInitialLoad(30000);
+                    int rows = panel.CountRowsForSelfTest();
+                    panel.Hide();
+                    return loaded && rows > 0;
+                }
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -1926,8 +1993,12 @@ namespace CodexRouterSwitch
                         values["modernUi"] = form.RunModernUiSelfTest();
                         values["pureChineseUi"] = form.RunChineseUiSelfTest();
                         values["layoutSafe"] = form.RunLayoutSelfTest();
+                        values["modelPanelBridge"] =
+                            form.RunModelPanelBridgeSelfTest();
+                        values["modelPanelForm"] =
+                            form.RunModelPanelFormSelfTest();
                         values["uiLanguage"] = "zh-CN";
-                        values["version"] = "1.2.5";
+                        values["version"] = "1.3.0";
                         values["refreshMutationGuard"] =
                             form.RunInteractionGuardSelfTest();
                         values["readOnlyArgsRestricted"] =
